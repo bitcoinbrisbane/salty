@@ -99,10 +99,56 @@ func (p *Parser) parseMember() (ast.Node, error) {
 		return p.parseFunction()
 	case lexer.STRUCT:
 		return p.parseStruct()
+	case lexer.EVENT:
+		return p.parseEvent()
 	case lexer.TYPE, lexer.MAPPING, lexer.IDENT:
 		return p.parseStateVar()
 	}
-	return nil, p.errf("expected 'function', 'struct', or a type, got %q", p.cur.Literal)
+	return nil, p.errf("expected 'function', 'struct', 'event', or a type, got %q", p.cur.Literal)
+}
+
+// parseEvent parses:
+//
+//	event Name(<type> [indexed] [name], ...);
+func (p *Parser) parseEvent() (*ast.Event, error) {
+	if _, err := p.expect(lexer.EVENT); err != nil {
+		return nil, err
+	}
+	name, err := p.expect(lexer.IDENT)
+	if err != nil {
+		return nil, err
+	}
+	ev := &ast.Event{Name: name.Literal}
+	if _, err := p.expect(lexer.LPAREN); err != nil {
+		return nil, err
+	}
+	for p.cur.Type != lexer.RPAREN {
+		ptyp, err := p.parseType()
+		if err != nil {
+			return nil, err
+		}
+		param := &ast.EventParam{Type: ptyp}
+		if p.cur.Type == lexer.INDEXED {
+			param.Indexed = true
+			p.advance()
+		}
+		// The parameter name is optional.
+		if p.cur.Type == lexer.IDENT {
+			param.Name = p.cur.Literal
+			p.advance()
+		}
+		ev.Params = append(ev.Params, param)
+		if p.cur.Type == lexer.COMMA {
+			p.advance()
+		}
+	}
+	if _, err := p.expect(lexer.RPAREN); err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.SEMI); err != nil {
+		return nil, err
+	}
+	return ev, nil
 }
 
 // parseType parses a type reference: an elementary type (TYPE), a struct name
@@ -294,6 +340,8 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 		return p.parseIf()
 	case lexer.SWITCH:
 		return p.parseSwitch()
+	case lexer.EMIT:
+		return p.parseEmit()
 	case lexer.TYPE, lexer.MAPPING:
 		return p.parseVarDecl()
 	case lexer.IDENT:
@@ -324,6 +372,24 @@ func (p *Parser) parseReturn() (ast.Statement, error) {
 		return nil, err
 	}
 	return &ast.ReturnStmt{Value: val}, nil
+}
+
+// parseEmit parses `emit Name(args...);`. The name and argument list are parsed
+// as an ordinary call expression, which must resolve to a CallExpr.
+func (p *Parser) parseEmit() (ast.Statement, error) {
+	p.advance() // emit
+	expr, err := p.parseExpression(lowest)
+	if err != nil {
+		return nil, err
+	}
+	call, ok := expr.(*ast.CallExpr)
+	if !ok {
+		return nil, p.errf("expected an event call after 'emit'")
+	}
+	if _, err := p.expect(lexer.SEMI); err != nil {
+		return nil, err
+	}
+	return &ast.EmitStmt{Call: call}, nil
 }
 
 func (p *Parser) parseVarDecl() (ast.Statement, error) {

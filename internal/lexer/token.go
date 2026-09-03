@@ -28,6 +28,9 @@ const (
 	DEFAULT
 	MAPPING
 	STRUCT
+	EVENT
+	EMIT
+	INDEXED
 	TYPE // a type name such as uint256, uint, int, bool, address
 	TRUE
 	FALSE
@@ -87,6 +90,9 @@ var keywords = map[string]TokenType{
 	"default":  DEFAULT,
 	"mapping":  MAPPING,
 	"struct":   STRUCT,
+	"event":    EVENT,
+	"emit":     EMIT,
+	"indexed":  INDEXED,
 	"true":     TRUE,
 	"false":    FALSE,
 
@@ -134,7 +140,8 @@ var tokenNames = map[TokenType]string{
 	PRIVATE: "private", INTERNAL: "internal", EXTERNAL: "external",
 	VIEW: "view", PURE: "pure", RETURNS: "returns", RETURN: "return",
 	IF: "if", ELSE: "else", SWITCH: "switch", CASE: "case", DEFAULT: "default",
-	MAPPING: "mapping", STRUCT: "struct", TRUE: "true", FALSE: "false",
+	MAPPING: "mapping", STRUCT: "struct", EVENT: "event", EMIT: "emit",
+	INDEXED: "indexed", TRUE: "true", FALSE: "false",
 	LBRACE: "{", RBRACE: "}", LPAREN: "(", RPAREN: ")",
 	LBRACKET: "[", RBRACKET: "]", SEMI: ";",
 	COMMA: ",", COLON: ":", DOT: ".", ASSIGN: "=", ARROW: "=>",

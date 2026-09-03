@@ -43,14 +43,16 @@ func (e *emitter) emitContract(c *ast.Contract) {
 	e.line(fmt.Sprintf("contract %s {", c.Name))
 	e.indent++
 	for i, m := range c.Members {
-		// Separate members with a blank line, but keep consecutive state
-		// variables grouped together without gaps.
-		if i > 0 && !(isStateVar(m) && isStateVar(c.Members[i-1])) {
+		// Separate members with a blank line, but keep consecutive single-line
+		// declarations (state variables, events) grouped together without gaps.
+		if i > 0 && !(isSingleLineMember(m) && isSingleLineMember(c.Members[i-1])) {
 			e.raw("\n")
 		}
 		switch member := m.(type) {
 		case *ast.StateVar:
 			e.line(fmt.Sprintf("%s %s;", member.Type.String(), member.Name))
+		case *ast.Event:
+			e.emitEvent(member)
 		case *ast.Struct:
 			e.emitStruct(member)
 		case *ast.Function:
@@ -61,9 +63,36 @@ func (e *emitter) emitContract(c *ast.Contract) {
 	e.line("}")
 }
 
-func isStateVar(n ast.Node) bool {
-	_, ok := n.(*ast.StateVar)
-	return ok
+// isSingleLineMember reports whether n renders as a single-line declaration,
+// used to decide member spacing.
+func isSingleLineMember(n ast.Node) bool {
+	switch n.(type) {
+	case *ast.StateVar, *ast.Event:
+		return true
+	}
+	return false
+}
+
+func (e *emitter) emitEvent(ev *ast.Event) {
+	var sb strings.Builder
+	sb.WriteString("event ")
+	sb.WriteString(ev.Name)
+	sb.WriteString("(")
+	for i, p := range ev.Params {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(p.Type.String())
+		if p.Indexed {
+			sb.WriteString(" indexed")
+		}
+		if p.Name != "" {
+			sb.WriteString(" ")
+			sb.WriteString(p.Name)
+		}
+	}
+	sb.WriteString(");")
+	e.line(sb.String())
 }
 
 func (e *emitter) emitStruct(s *ast.Struct) {
@@ -137,6 +166,8 @@ func (e *emitter) emitStatement(s ast.Statement) {
 		}
 	case *ast.ExprStmt:
 		e.line(emitExpr(stmt.X) + ";")
+	case *ast.EmitStmt:
+		e.line("emit " + emitExpr(stmt.Call) + ";")
 	case *ast.Block:
 		for _, inner := range stmt.Statements {
 			e.emitStatement(inner)

@@ -129,3 +129,45 @@ func TestParseStructAndMapping(t *testing.T) {
 		t.Fatalf("member target = %T, want *ast.IndexExpr", mem.Target)
 	}
 }
+
+func TestParseEventAndEmit(t *testing.T) {
+	src := `contract W {
+    event Deposit(address indexed from, uint amount);
+    function deposit(uint amount) public {
+        emit Deposit(msg.sender, amount);
+    }
+}`
+
+	file, err := ParseFile(src)
+	if err != nil {
+		t.Fatalf("ParseFile: %v", err)
+	}
+	c := file.Contracts[0]
+
+	ev, ok := c.Members[0].(*ast.Event)
+	if !ok {
+		t.Fatalf("member 0 = %T, want *ast.Event", c.Members[0])
+	}
+	if ev.Name != "Deposit" || len(ev.Params) != 2 {
+		t.Fatalf("event = %q with %d params, want Deposit with 2", ev.Name, len(ev.Params))
+	}
+	if !ev.Params[0].Indexed || ev.Params[0].Name != "from" {
+		t.Fatalf("param 0 wrong: indexed=%v name=%q", ev.Params[0].Indexed, ev.Params[0].Name)
+	}
+	if ev.Params[1].Indexed {
+		t.Fatalf("param 1 should not be indexed")
+	}
+
+	fn := c.Members[1].(*ast.Function)
+	em, ok := fn.Body.Statements[0].(*ast.EmitStmt)
+	if !ok {
+		t.Fatalf("stmt 0 = %T, want *ast.EmitStmt", fn.Body.Statements[0])
+	}
+	callee, ok := em.Call.Callee.(*ast.Identifier)
+	if !ok || callee.Name != "Deposit" {
+		t.Fatalf("emit callee = %+v, want identifier Deposit", em.Call.Callee)
+	}
+	if len(em.Call.Args) != 2 {
+		t.Fatalf("emit args = %d, want 2", len(em.Call.Args))
+	}
+}

@@ -4,6 +4,9 @@
 *.exe
 *.out
 
+# Generated Solidity output at the repo root (e.g. from `salty transpile -o`).
+/*.sol
+
 # Go
 *.test
 *.prof

@@ -51,10 +51,28 @@ func (*File) node() {}
 // Contract is a single contract declaration and its members.
 type Contract struct {
 	Name    string
-	Members []Node // *StateVar, *Function, or *Struct
+	Members []Node // *StateVar, *Function, *Struct, or *Event
 }
 
 func (*Contract) node() {}
+
+// EventParam is a single parameter of an event declaration. Indexed marks the
+// parameter with Solidity's `indexed` keyword.
+type EventParam struct {
+	Type    Type
+	Name    string // may be empty; event params are often anonymous
+	Indexed bool
+}
+
+func (*EventParam) node() {}
+
+// Event is an event declaration inside a contract.
+type Event struct {
+	Name   string
+	Params []*EventParam
+}
+
+func (*Event) node() {}
 
 // Field is a single named field within a struct.
 type Field struct {
@@ -172,6 +190,15 @@ type ExprStmt struct {
 
 func (*ExprStmt) node() {}
 func (*ExprStmt) stmt() {}
+
+// EmitStmt emits an event: `emit Name(args...)`. Call is the underlying call
+// expression whose callee is the event name.
+type EmitStmt struct {
+	Call *CallExpr
+}
+
+func (*EmitStmt) node() {}
+func (*EmitStmt) stmt() {}
 
 // --- Expressions -------------------------------------------------------------
 

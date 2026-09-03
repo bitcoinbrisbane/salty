@@ -76,3 +76,28 @@ m[k].field = 1;`
 		}
 	}
 }
+
+func TestEventAndEmitTokens(t *testing.T) {
+	input := `event E(address indexed a, uint b);
+emit E(x, y);`
+
+	want := []struct {
+		typ TokenType
+		lit string
+	}{
+		{EVENT, "event"}, {IDENT, "E"}, {LPAREN, "("},
+		{TYPE, "address"}, {INDEXED, "indexed"}, {IDENT, "a"}, {COMMA, ","},
+		{TYPE, "uint"}, {IDENT, "b"}, {RPAREN, ")"}, {SEMI, ";"},
+		{EMIT, "emit"}, {IDENT, "E"}, {LPAREN, "("},
+		{IDENT, "x"}, {COMMA, ","}, {IDENT, "y"}, {RPAREN, ")"}, {SEMI, ";"},
+		{EOF, ""},
+	}
+
+	l := New(input)
+	for i, w := range want {
+		got := l.NextToken()
+		if got.Type != w.typ || got.Literal != w.lit {
+			t.Fatalf("token %d: got %v (%q), want %v (%q)", i, got.Type, got.Literal, w.typ, w.lit)
+		}
+	}
+}

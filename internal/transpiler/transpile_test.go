@@ -104,3 +104,26 @@ func TestTranspileMappingAndStruct(t *testing.T) {
 		}
 	}
 }
+
+func TestTranspileEventAndEmit(t *testing.T) {
+	src := `contract Wallet {
+    event Deposit(address indexed from, uint amount);
+    function deposit(uint amount) public {
+        emit Deposit(msg.sender, amount);
+    }
+}`
+
+	out, err := Transpile(src)
+	if err != nil {
+		t.Fatalf("Transpile: %v", err)
+	}
+
+	for _, want := range []string{
+		"event Deposit(address indexed from, uint256 amount);", // indexed + alias in params
+		"emit Deposit(msg.sender, amount);",                    // emit statement
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q\n---\n%s", want, out)
+		}
+	}
+}

@@ -22,6 +22,10 @@ func lowerFile(f *ast.File) {
 				for _, field := range member.Fields {
 					field.Type = lowerType(field.Type)
 				}
+			case *ast.Event:
+				for _, param := range member.Params {
+					param.Type = lowerType(param.Type)
+				}
 			case *ast.Function:
 				lowerFunction(member)
 			}
