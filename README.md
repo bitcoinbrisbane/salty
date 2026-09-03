@@ -26,10 +26,32 @@ web/                 # pure HTML site (no framework)
 examples/            # sample .salty inputs
 ```
 
-## Build
+## Install
+
+Install the CLI so `salty` is available from anywhere:
+
+```bash
+go install ./cmd/salty
+```
+
+This installs the binary to `$(go env GOPATH)/bin` (usually `~/go/bin`). If that
+directory isn't on your `PATH`, add it — for zsh:
+
+```bash
+echo 'export PATH="$PATH:$(go env GOPATH)/bin"' >> ~/.zshrc
+source ~/.zshrc   # or open a new terminal
+```
+
+Then `salty` works from any directory. Re-run `go install ./cmd/salty` after
+changing the source to refresh the installed binary.
+
+## Build (without installing)
+
+To build a local binary instead of installing, run it by path:
 
 ```bash
 go build -o bin/salty ./cmd/salty
+./bin/salty transpile examples/counter.salty
 ```
 
 ## Usage
