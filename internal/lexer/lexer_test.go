@@ -49,3 +49,30 @@ func TestNextToken(t *testing.T) {
 		}
 	}
 }
+
+func TestMappingAndStructTokens(t *testing.T) {
+	input := `struct S { uint x; }
+mapping(address => uint) m;
+m[k].field = 1;`
+
+	want := []struct {
+		typ TokenType
+		lit string
+	}{
+		{STRUCT, "struct"}, {IDENT, "S"}, {LBRACE, "{"},
+		{TYPE, "uint"}, {IDENT, "x"}, {SEMI, ";"}, {RBRACE, "}"},
+		{MAPPING, "mapping"}, {LPAREN, "("}, {TYPE, "address"},
+		{ARROW, "=>"}, {TYPE, "uint"}, {RPAREN, ")"}, {IDENT, "m"}, {SEMI, ";"},
+		{IDENT, "m"}, {LBRACKET, "["}, {IDENT, "k"}, {RBRACKET, "]"},
+		{DOT, "."}, {IDENT, "field"}, {ASSIGN, "="}, {INT, "1"}, {SEMI, ";"},
+		{EOF, ""},
+	}
+
+	l := New(input)
+	for i, w := range want {
+		got := l.NextToken()
+		if got.Type != w.typ || got.Literal != w.lit {
+			t.Fatalf("token %d: got %v (%q), want %v (%q)", i, got.Type, got.Literal, w.typ, w.lit)
+		}
+	}
+}

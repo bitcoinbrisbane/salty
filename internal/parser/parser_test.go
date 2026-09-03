@@ -70,3 +70,62 @@ func TestParseSwitch(t *testing.T) {
 		t.Fatalf("default is nil, want a block")
 	}
 }
+
+func TestParseStructAndMapping(t *testing.T) {
+	src := `contract Token {
+    struct Account {
+        uint balance;
+        bool frozen;
+    }
+    mapping(address => Account) accounts;
+    mapping(address => mapping(address => uint)) allowance;
+    function balanceOf(address owner) public view returns (uint) {
+        return accounts[owner].balance;
+    }
+}`
+
+	file, err := ParseFile(src)
+	if err != nil {
+		t.Fatalf("ParseFile: %v", err)
+	}
+	c := file.Contracts[0]
+
+	st, ok := c.Members[0].(*ast.Struct)
+	if !ok {
+		t.Fatalf("member 0 = %T, want *ast.Struct", c.Members[0])
+	}
+	if st.Name != "Account" || len(st.Fields) != 2 {
+		t.Fatalf("struct = %q with %d fields, want Account with 2", st.Name, len(st.Fields))
+	}
+
+	sv, ok := c.Members[1].(*ast.StateVar)
+	if !ok {
+		t.Fatalf("member 1 = %T, want *ast.StateVar", c.Members[1])
+	}
+	if !sv.Type.IsMapping() {
+		t.Fatalf("accounts type is not a mapping: %+v", sv.Type)
+	}
+	if sv.Type.Key.Name != "address" || sv.Type.Value.Name != "Account" {
+		t.Fatalf("mapping types wrong: key=%q value=%q", sv.Type.Key.Name, sv.Type.Value.Name)
+	}
+
+	// Nested mapping.
+	nested := c.Members[2].(*ast.StateVar)
+	if !nested.Type.Value.IsMapping() {
+		t.Fatalf("allowance value is not a nested mapping: %+v", nested.Type)
+	}
+
+	// Index + member access in the return expression.
+	fn := c.Members[3].(*ast.Function)
+	ret := fn.Body.Statements[0].(*ast.ReturnStmt)
+	mem, ok := ret.Value.(*ast.MemberExpr)
+	if !ok {
+		t.Fatalf("return value = %T, want *ast.MemberExpr", ret.Value)
+	}
+	if mem.Member != "balance" {
+		t.Fatalf("member = %q, want balance", mem.Member)
+	}
+	if _, ok := mem.Target.(*ast.IndexExpr); !ok {
+		t.Fatalf("member target = %T, want *ast.IndexExpr", mem.Target)
+	}
+}

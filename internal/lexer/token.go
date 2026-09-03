@@ -26,6 +26,8 @@ const (
 	SWITCH
 	CASE
 	DEFAULT
+	MAPPING
+	STRUCT
 	TYPE // a type name such as uint256, uint, int, bool, address
 	TRUE
 	FALSE
@@ -35,10 +37,14 @@ const (
 	RBRACE   // }
 	LPAREN   // (
 	RPAREN   // )
+	LBRACKET // [
+	RBRACKET // ]
 	SEMI     // ;
 	COMMA    // ,
 	COLON    // :
+	DOT      // .
 	ASSIGN   // =
+	ARROW    // =>
 
 	// Operators.
 	PLUS  // +
@@ -79,6 +85,8 @@ var keywords = map[string]TokenType{
 	"switch":   SWITCH,
 	"case":     CASE,
 	"default":  DEFAULT,
+	"mapping":  MAPPING,
+	"struct":   STRUCT,
 	"true":     TRUE,
 	"false":    FALSE,
 
@@ -126,9 +134,10 @@ var tokenNames = map[TokenType]string{
 	PRIVATE: "private", INTERNAL: "internal", EXTERNAL: "external",
 	VIEW: "view", PURE: "pure", RETURNS: "returns", RETURN: "return",
 	IF: "if", ELSE: "else", SWITCH: "switch", CASE: "case", DEFAULT: "default",
-	TRUE: "true", FALSE: "false",
-	LBRACE: "{", RBRACE: "}", LPAREN: "(", RPAREN: ")", SEMI: ";",
-	COMMA: ",", COLON: ":", ASSIGN: "=",
+	MAPPING: "mapping", STRUCT: "struct", TRUE: "true", FALSE: "false",
+	LBRACE: "{", RBRACE: "}", LPAREN: "(", RPAREN: ")",
+	LBRACKET: "[", RBRACKET: "]", SEMI: ";",
+	COMMA: ",", COLON: ":", DOT: ".", ASSIGN: "=", ARROW: "=>",
 	PLUS: "+", MINUS: "-", STAR: "*", SLASH: "/",
 	EQ: "==", NEQ: "!=", LT: "<", GT: ">", LTE: "<=", GTE: ">=",
 }

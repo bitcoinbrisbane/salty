@@ -69,3 +69,38 @@ func TestTranspileSwitch(t *testing.T) {
 		t.Errorf("missing else (default) branch:\n%s", out)
 	}
 }
+
+func TestTranspileMappingAndStruct(t *testing.T) {
+	src := `contract Token {
+    struct Account {
+        uint balance;
+        bool frozen;
+    }
+    mapping(address => Account) accounts;
+    mapping(address => mapping(address => uint)) allowance;
+    function balanceOf(address owner) public view returns (uint) {
+        return accounts[owner].balance;
+    }
+    function approve(address spender, uint amount) public {
+        allowance[msg.sender][spender] = amount;
+    }
+}`
+
+	out, err := Transpile(src)
+	if err != nil {
+		t.Fatalf("Transpile: %v", err)
+	}
+
+	for _, want := range []string{
+		"struct Account {",
+		"uint256 balance;",                                        // alias inside struct
+		"mapping(address => Account) accounts;",                   // mapping to struct
+		"mapping(address => mapping(address => uint256)) allowance;", // nested mapping + alias
+		"return accounts[owner].balance;",                         // index + member access
+		"allowance[msg.sender][spender] = amount;",                // chained index + member
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q\n---\n%s", want, out)
+		}
+	}
+}

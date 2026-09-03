@@ -1,0 +1,20 @@
+// Demonstrates Salty mappings and structs.
+
+contract Token {
+    struct Account {
+        uint balance;
+        bool frozen;
+    }
+
+    mapping(address => Account) accounts;
+    mapping(address => mapping(address => uint)) allowance;
+    uint totalSupply;
+
+    function balanceOf(address owner) public view returns (uint) {
+        return accounts[owner].balance;
+    }
+
+    function approve(address spender, uint amount) public {
+        allowance[msg.sender][spender] = amount;
+    }
+}

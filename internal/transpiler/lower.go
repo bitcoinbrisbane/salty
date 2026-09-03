@@ -18,6 +18,10 @@ func lowerFile(f *ast.File) {
 			switch member := m.(type) {
 			case *ast.StateVar:
 				member.Type = lowerType(member.Type)
+			case *ast.Struct:
+				for _, field := range member.Fields {
+					field.Type = lowerType(field.Type)
+				}
 			case *ast.Function:
 				lowerFunction(member)
 			}
@@ -25,7 +29,14 @@ func lowerFile(f *ast.File) {
 	}
 }
 
+// lowerType expands type aliases, recursing into mapping key and value types so
+// aliases inside mappings (e.g. mapping(address => uint)) are expanded too.
 func lowerType(t ast.Type) ast.Type {
+	if t.IsMapping() {
+		key := lowerType(*t.Key)
+		val := lowerType(*t.Value)
+		return ast.Type{Key: &key, Value: &val}
+	}
 	if canonical, ok := typeAliases[t.Name]; ok {
 		return ast.Type{Name: canonical}
 	}

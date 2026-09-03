@@ -126,12 +126,18 @@ func (l *Lexer) readSymbol(line, col int) Token {
 		return tok(LPAREN, "(")
 	case ')':
 		return tok(RPAREN, ")")
+	case '[':
+		return tok(LBRACKET, "[")
+	case ']':
+		return tok(RBRACKET, "]")
 	case ';':
 		return tok(SEMI, ";")
 	case ',':
 		return tok(COMMA, ",")
 	case ':':
 		return tok(COLON, ":")
+	case '.':
+		return tok(DOT, ".")
 	case '+':
 		return tok(PLUS, "+")
 	case '-':
@@ -144,6 +150,10 @@ func (l *Lexer) readSymbol(line, col int) Token {
 		if l.peek() == '=' {
 			l.advance()
 			return tok(EQ, "==")
+		}
+		if l.peek() == '>' {
+			l.advance()
+			return tok(ARROW, "=>")
 		}
 		return tok(ASSIGN, "=")
 	case '!':

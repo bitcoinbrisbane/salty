@@ -43,15 +43,34 @@ func (e *emitter) emitContract(c *ast.Contract) {
 	e.line(fmt.Sprintf("contract %s {", c.Name))
 	e.indent++
 	for i, m := range c.Members {
+		// Separate members with a blank line, but keep consecutive state
+		// variables grouped together without gaps.
+		if i > 0 && !(isStateVar(m) && isStateVar(c.Members[i-1])) {
+			e.raw("\n")
+		}
 		switch member := m.(type) {
 		case *ast.StateVar:
-			e.line(fmt.Sprintf("%s %s;", member.Type.Name, member.Name))
+			e.line(fmt.Sprintf("%s %s;", member.Type.String(), member.Name))
+		case *ast.Struct:
+			e.emitStruct(member)
 		case *ast.Function:
-			if i > 0 {
-				e.raw("\n")
-			}
 			e.emitFunction(member)
 		}
+	}
+	e.indent--
+	e.line("}")
+}
+
+func isStateVar(n ast.Node) bool {
+	_, ok := n.(*ast.StateVar)
+	return ok
+}
+
+func (e *emitter) emitStruct(s *ast.Struct) {
+	e.line(fmt.Sprintf("struct %s {", s.Name))
+	e.indent++
+	for _, f := range s.Fields {
+		e.line(fmt.Sprintf("%s %s;", f.Type.String(), f.Name))
 	}
 	e.indent--
 	e.line("}")
@@ -66,7 +85,7 @@ func (e *emitter) emitFunction(fn *ast.Function) {
 		if i > 0 {
 			sig.WriteString(", ")
 		}
-		sig.WriteString(p.Type.Name)
+		sig.WriteString(p.Type.String())
 		sig.WriteString(" ")
 		sig.WriteString(p.Name)
 	}
@@ -85,7 +104,7 @@ func (e *emitter) emitFunction(fn *ast.Function) {
 			if i > 0 {
 				sig.WriteString(", ")
 			}
-			sig.WriteString(r.Name)
+			sig.WriteString(r.String())
 		}
 		sig.WriteString(")")
 	}
@@ -104,9 +123,9 @@ func (e *emitter) emitStatement(s ast.Statement) {
 	switch stmt := s.(type) {
 	case *ast.VarDeclStmt:
 		if stmt.Value != nil {
-			e.line(fmt.Sprintf("%s %s = %s;", stmt.Type.Name, stmt.Name, emitExpr(stmt.Value)))
+			e.line(fmt.Sprintf("%s %s = %s;", stmt.Type.String(), stmt.Name, emitExpr(stmt.Value)))
 		} else {
-			e.line(fmt.Sprintf("%s %s;", stmt.Type.Name, stmt.Name))
+			e.line(fmt.Sprintf("%s %s;", stmt.Type.String(), stmt.Name))
 		}
 	case *ast.AssignStmt:
 		e.line(fmt.Sprintf("%s = %s;", emitExpr(stmt.Target), emitExpr(stmt.Value)))
@@ -205,6 +224,10 @@ func emitExpr(x ast.Expression) string {
 			args[i] = emitExpr(a)
 		}
 		return fmt.Sprintf("%s(%s)", emitExpr(e.Callee), strings.Join(args, ", "))
+	case *ast.IndexExpr:
+		return fmt.Sprintf("%s[%s]", emitExpr(e.Target), emitExpr(e.Index))
+	case *ast.MemberExpr:
+		return fmt.Sprintf("%s.%s", emitExpr(e.Target), e.Member)
 	}
 	return ""
 }

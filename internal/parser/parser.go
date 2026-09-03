@@ -90,22 +90,98 @@ func (p *Parser) parseContract() (*ast.Contract, error) {
 	return c, nil
 }
 
-// parseMember parses either a function or a state variable. Both start with a
-// keyword we can distinguish: functions start with `function`, state vars with
-// a type name.
+// parseMember parses a function, struct, or state variable. Functions start
+// with `function`, structs with `struct`, and state variables with a type
+// (an elementary type, `mapping`, or a struct name used as a type).
 func (p *Parser) parseMember() (ast.Node, error) {
-	if p.cur.Type == lexer.FUNCTION {
+	switch p.cur.Type {
+	case lexer.FUNCTION:
 		return p.parseFunction()
-	}
-	if p.cur.Type == lexer.TYPE {
+	case lexer.STRUCT:
+		return p.parseStruct()
+	case lexer.TYPE, lexer.MAPPING, lexer.IDENT:
 		return p.parseStateVar()
 	}
-	return nil, p.errf("expected 'function' or a type, got %q", p.cur.Literal)
+	return nil, p.errf("expected 'function', 'struct', or a type, got %q", p.cur.Literal)
+}
+
+// parseType parses a type reference: an elementary type (TYPE), a struct name
+// (IDENT), or a mapping(K => V).
+func (p *Parser) parseType() (ast.Type, error) {
+	switch p.cur.Type {
+	case lexer.TYPE, lexer.IDENT:
+		name := p.cur.Literal
+		p.advance()
+		return ast.Type{Name: name}, nil
+	case lexer.MAPPING:
+		return p.parseMappingType()
+	}
+	return ast.Type{}, p.errf("expected a type, got %q", p.cur.Literal)
+}
+
+// parseMappingType parses mapping(<type> => <type>). The value type may itself
+// be a mapping, allowing nested mappings.
+func (p *Parser) parseMappingType() (ast.Type, error) {
+	if _, err := p.expect(lexer.MAPPING); err != nil {
+		return ast.Type{}, err
+	}
+	if _, err := p.expect(lexer.LPAREN); err != nil {
+		return ast.Type{}, err
+	}
+	key, err := p.parseType()
+	if err != nil {
+		return ast.Type{}, err
+	}
+	if _, err := p.expect(lexer.ARROW); err != nil {
+		return ast.Type{}, err
+	}
+	val, err := p.parseType()
+	if err != nil {
+		return ast.Type{}, err
+	}
+	if _, err := p.expect(lexer.RPAREN); err != nil {
+		return ast.Type{}, err
+	}
+	return ast.Type{Key: &key, Value: &val}, nil
+}
+
+func (p *Parser) parseStruct() (*ast.Struct, error) {
+	if _, err := p.expect(lexer.STRUCT); err != nil {
+		return nil, err
+	}
+	name, err := p.expect(lexer.IDENT)
+	if err != nil {
+		return nil, err
+	}
+	s := &ast.Struct{Name: name.Literal}
+	if _, err := p.expect(lexer.LBRACE); err != nil {
+		return nil, err
+	}
+	for p.cur.Type != lexer.RBRACE && p.cur.Type != lexer.EOF {
+		ftyp, err := p.parseType()
+		if err != nil {
+			return nil, err
+		}
+		fname, err := p.expect(lexer.IDENT)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := p.expect(lexer.SEMI); err != nil {
+			return nil, err
+		}
+		s.Fields = append(s.Fields, &ast.Field{Type: ftyp, Name: fname.Literal})
+	}
+	if _, err := p.expect(lexer.RBRACE); err != nil {
+		return nil, err
+	}
+	return s, nil
 }
 
 func (p *Parser) parseStateVar() (*ast.StateVar, error) {
-	typ := ast.Type{Name: p.cur.Literal}
-	p.advance()
+	typ, err := p.parseType()
+	if err != nil {
+		return nil, err
+	}
 	name, err := p.expect(lexer.IDENT)
 	if err != nil {
 		return nil, err
@@ -131,11 +207,10 @@ func (p *Parser) parseFunction() (*ast.Function, error) {
 		return nil, err
 	}
 	for p.cur.Type != lexer.RPAREN {
-		if p.cur.Type != lexer.TYPE {
-			return nil, p.errf("expected parameter type, got %q", p.cur.Literal)
+		ptyp, err := p.parseType()
+		if err != nil {
+			return nil, err
 		}
-		ptyp := ast.Type{Name: p.cur.Literal}
-		p.advance()
 		pname, err := p.expect(lexer.IDENT)
 		if err != nil {
 			return nil, err
@@ -171,11 +246,11 @@ modifiersDone:
 			return nil, err
 		}
 		for p.cur.Type != lexer.RPAREN {
-			if p.cur.Type != lexer.TYPE {
-				return nil, p.errf("expected return type, got %q", p.cur.Literal)
+			rtyp, err := p.parseType()
+			if err != nil {
+				return nil, err
 			}
-			fn.Returns = append(fn.Returns, ast.Type{Name: p.cur.Literal})
-			p.advance()
+			fn.Returns = append(fn.Returns, rtyp)
 			if p.cur.Type == lexer.COMMA {
 				p.advance()
 			}
@@ -219,8 +294,17 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 		return p.parseIf()
 	case lexer.SWITCH:
 		return p.parseSwitch()
-	case lexer.TYPE:
+	case lexer.TYPE, lexer.MAPPING:
 		return p.parseVarDecl()
+	case lexer.IDENT:
+		// A struct-typed local declaration looks like `Account a` — an
+		// identifier (the type) immediately followed by another identifier
+		// (the name). Anything else starting with an identifier is an
+		// expression or assignment.
+		if p.next.Type == lexer.IDENT {
+			return p.parseVarDecl()
+		}
+		return p.parseExprOrAssign()
 	default:
 		return p.parseExprOrAssign()
 	}
@@ -243,8 +327,10 @@ func (p *Parser) parseReturn() (ast.Statement, error) {
 }
 
 func (p *Parser) parseVarDecl() (ast.Statement, error) {
-	typ := ast.Type{Name: p.cur.Literal}
-	p.advance()
+	typ, err := p.parseType()
+	if err != nil {
+		return nil, err
+	}
 	name, err := p.expect(lexer.IDENT)
 	if err != nil {
 		return nil, err
@@ -398,7 +484,7 @@ func precedenceOf(t lexer.TokenType) int {
 		return sum
 	case lexer.STAR, lexer.SLASH:
 		return product
-	case lexer.LPAREN:
+	case lexer.LPAREN, lexer.LBRACKET, lexer.DOT:
 		return call
 	}
 	return lowest
@@ -414,8 +500,21 @@ func (p *Parser) parseExpression(minPrec int) (ast.Expression, error) {
 		if prec <= minPrec {
 			break
 		}
-		if p.cur.Type == lexer.LPAREN {
+		switch p.cur.Type {
+		case lexer.LPAREN:
 			left, err = p.parseCall(left)
+			if err != nil {
+				return nil, err
+			}
+			continue
+		case lexer.LBRACKET:
+			left, err = p.parseIndex(left)
+			if err != nil {
+				return nil, err
+			}
+			continue
+		case lexer.DOT:
+			left, err = p.parseMemberAccess(left)
 			if err != nil {
 				return nil, err
 			}
@@ -449,6 +548,29 @@ func (p *Parser) parseCall(callee ast.Expression) (ast.Expression, error) {
 		return nil, err
 	}
 	return c, nil
+}
+
+// parseIndex parses a subscript: target[index].
+func (p *Parser) parseIndex(target ast.Expression) (ast.Expression, error) {
+	p.advance() // [
+	idx, err := p.parseExpression(lowest)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.RBRACKET); err != nil {
+		return nil, err
+	}
+	return &ast.IndexExpr{Target: target, Index: idx}, nil
+}
+
+// parseMemberAccess parses a member access: target.member.
+func (p *Parser) parseMemberAccess(target ast.Expression) (ast.Expression, error) {
+	p.advance() // .
+	member, err := p.expect(lexer.IDENT)
+	if err != nil {
+		return nil, err
+	}
+	return &ast.MemberExpr{Target: target, Member: member.Literal}, nil
 }
 
 func (p *Parser) parsePrimary() (ast.Expression, error) {

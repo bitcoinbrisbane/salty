@@ -17,13 +17,27 @@ type Expression interface {
 	expr()
 }
 
-// Type is a Salty type reference (e.g. "uint", "uint256"). It is a thin wrapper
-// so lowering passes can rewrite aliases in place.
+// Type is a Salty type reference. For simple types (e.g. "uint", "uint256",
+// a struct name) only Name is set. For a mapping, Key and Value hold the
+// mapping's key and value types and Name is left empty.
 type Type struct {
-	Name string
+	Name  string // simple/elementary type or struct name
+	Key   *Type  // mapping key type, nil for non-mappings
+	Value *Type  // mapping value type, nil for non-mappings
 }
 
 func (Type) node() {}
+
+// IsMapping reports whether t is a mapping type.
+func (t Type) IsMapping() bool { return t.Key != nil && t.Value != nil }
+
+// String renders the type as Solidity source, recursively for nested mappings.
+func (t Type) String() string {
+	if t.IsMapping() {
+		return "mapping(" + t.Key.String() + " => " + t.Value.String() + ")"
+	}
+	return t.Name
+}
 
 // --- Top level ---------------------------------------------------------------
 
@@ -37,10 +51,26 @@ func (*File) node() {}
 // Contract is a single contract declaration and its members.
 type Contract struct {
 	Name    string
-	Members []Node // *StateVar or *Function
+	Members []Node // *StateVar, *Function, or *Struct
 }
 
 func (*Contract) node() {}
+
+// Field is a single named field within a struct.
+type Field struct {
+	Type Type
+	Name string
+}
+
+func (*Field) node() {}
+
+// Struct is a struct type declaration inside a contract.
+type Struct struct {
+	Name   string
+	Fields []*Field
+}
+
+func (*Struct) node() {}
 
 // StateVar is a contract-level state variable declaration.
 type StateVar struct {
@@ -187,3 +217,21 @@ type CallExpr struct {
 
 func (*CallExpr) node() {}
 func (*CallExpr) expr() {}
+
+// IndexExpr is a subscript such as balances[owner].
+type IndexExpr struct {
+	Target Expression
+	Index  Expression
+}
+
+func (*IndexExpr) node() {}
+func (*IndexExpr) expr() {}
+
+// MemberExpr is a member access such as account.balance.
+type MemberExpr struct {
+	Target Expression
+	Member string
+}
+
+func (*MemberExpr) node() {}
+func (*MemberExpr) expr() {}
