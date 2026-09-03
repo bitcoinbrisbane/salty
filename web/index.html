@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Salty — a Solidity transpiler</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 720px; margin: 4rem auto; padding: 0 1rem; line-height: 1.6;
+    }
+    code { background: rgba(128,128,128,0.15); padding: 0.1em 0.35em; border-radius: 4px; }
+    pre { background: rgba(128,128,128,0.12); padding: 1rem; border-radius: 8px; overflow-x: auto; }
+    h1 { margin-bottom: 0; }
+    .tag { color: #888; margin-top: 0; }
+  </style>
+</head>
+<body>
+  <h1>Salty</h1>
+  <p class="tag">A Solidity-like language that transpiles to Solidity.</p>
+
+  <p>Salty adds ergonomic features on top of Solidity — like <code>switch</code>,
+  which lowers to <code>if / else if / else</code> — and emits clean, compilable
+  Solidity. It ships as a small Go CLI and this pure-HTML site: no framework,
+  no build step.</p>
+
+  <h2>Install</h2>
+  <pre><code>go install github.com/bitcoinbrisbane/salty/cmd/salty@latest</code></pre>
+
+  <h2>Use</h2>
+  <pre><code>salty transpile Counter.salty</code></pre>
+
+  <p><a href="https://github.com/bitcoinbrisbane/salty">Source on GitHub</a></p>
+</body>
+</html>

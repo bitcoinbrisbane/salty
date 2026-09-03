@@ -1,0 +1,219 @@
+package transpiler
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/bitcoinbrisbane/salty/internal/ast"
+)
+
+const (
+	solidityPragma = "pragma solidity ^0.8.0;"
+	spdxHeader     = "// SPDX-License-Identifier: MIT"
+	indentUnit     = "    "
+)
+
+// emitter builds Solidity source with indentation tracking.
+type emitter struct {
+	sb     strings.Builder
+	indent int
+}
+
+// Emit renders a (lowered) Salty AST as Solidity source.
+func Emit(f *ast.File) string {
+	e := &emitter{}
+	e.line(spdxHeader)
+	e.line(solidityPragma)
+	for _, c := range f.Contracts {
+		e.raw("\n")
+		e.emitContract(c)
+	}
+	return e.sb.String()
+}
+
+func (e *emitter) line(s string) {
+	e.sb.WriteString(strings.Repeat(indentUnit, e.indent))
+	e.sb.WriteString(s)
+	e.sb.WriteString("\n")
+}
+
+func (e *emitter) raw(s string) { e.sb.WriteString(s) }
+
+func (e *emitter) emitContract(c *ast.Contract) {
+	e.line(fmt.Sprintf("contract %s {", c.Name))
+	e.indent++
+	for i, m := range c.Members {
+		switch member := m.(type) {
+		case *ast.StateVar:
+			e.line(fmt.Sprintf("%s %s;", member.Type.Name, member.Name))
+		case *ast.Function:
+			if i > 0 {
+				e.raw("\n")
+			}
+			e.emitFunction(member)
+		}
+	}
+	e.indent--
+	e.line("}")
+}
+
+func (e *emitter) emitFunction(fn *ast.Function) {
+	var sig strings.Builder
+	sig.WriteString("function ")
+	sig.WriteString(fn.Name)
+	sig.WriteString("(")
+	for i, p := range fn.Params {
+		if i > 0 {
+			sig.WriteString(", ")
+		}
+		sig.WriteString(p.Type.Name)
+		sig.WriteString(" ")
+		sig.WriteString(p.Name)
+	}
+	sig.WriteString(")")
+	if fn.Visibility != "" {
+		sig.WriteString(" ")
+		sig.WriteString(fn.Visibility)
+	}
+	if fn.Mutability != "" {
+		sig.WriteString(" ")
+		sig.WriteString(fn.Mutability)
+	}
+	if len(fn.Returns) > 0 {
+		sig.WriteString(" returns (")
+		for i, r := range fn.Returns {
+			if i > 0 {
+				sig.WriteString(", ")
+			}
+			sig.WriteString(r.Name)
+		}
+		sig.WriteString(")")
+	}
+	sig.WriteString(" {")
+	e.line(sig.String())
+
+	e.indent++
+	for _, s := range fn.Body.Statements {
+		e.emitStatement(s)
+	}
+	e.indent--
+	e.line("}")
+}
+
+func (e *emitter) emitStatement(s ast.Statement) {
+	switch stmt := s.(type) {
+	case *ast.VarDeclStmt:
+		if stmt.Value != nil {
+			e.line(fmt.Sprintf("%s %s = %s;", stmt.Type.Name, stmt.Name, emitExpr(stmt.Value)))
+		} else {
+			e.line(fmt.Sprintf("%s %s;", stmt.Type.Name, stmt.Name))
+		}
+	case *ast.AssignStmt:
+		e.line(fmt.Sprintf("%s = %s;", emitExpr(stmt.Target), emitExpr(stmt.Value)))
+	case *ast.ReturnStmt:
+		if stmt.Value != nil {
+			e.line(fmt.Sprintf("return %s;", emitExpr(stmt.Value)))
+		} else {
+			e.line("return;")
+		}
+	case *ast.ExprStmt:
+		e.line(emitExpr(stmt.X) + ";")
+	case *ast.Block:
+		for _, inner := range stmt.Statements {
+			e.emitStatement(inner)
+		}
+	case *ast.IfStmt:
+		e.emitIf(stmt)
+	}
+}
+
+func (e *emitter) emitIf(stmt *ast.IfStmt) {
+	e.line(fmt.Sprintf("if (%s) {", emitExpr(stmt.Cond)))
+	e.indent++
+	for _, s := range stmt.Then.Statements {
+		e.emitStatement(s)
+	}
+	e.indent--
+
+	switch els := stmt.Else.(type) {
+	case nil:
+		e.line("}")
+	case *ast.IfStmt:
+		e.line(fmt.Sprintf("} else if (%s) {", emitExpr(els.Cond)))
+		e.indent++
+		for _, s := range els.Then.Statements {
+			e.emitStatement(s)
+		}
+		e.indent--
+		// Continue the chain by delegating the remaining else.
+		e.emitElseTail(els.Else)
+	case *ast.Block:
+		e.line("} else {")
+		e.indent++
+		for _, s := range els.Statements {
+			e.emitStatement(s)
+		}
+		e.indent--
+		e.line("}")
+	}
+}
+
+// emitElseTail closes an else-if chain: either another else-if, a final else,
+// or nothing.
+func (e *emitter) emitElseTail(els ast.Statement) {
+	switch tail := els.(type) {
+	case nil:
+		e.line("}")
+	case *ast.IfStmt:
+		e.line(fmt.Sprintf("} else if (%s) {", emitExpr(tail.Cond)))
+		e.indent++
+		for _, s := range tail.Then.Statements {
+			e.emitStatement(s)
+		}
+		e.indent--
+		e.emitElseTail(tail.Else)
+	case *ast.Block:
+		e.line("} else {")
+		e.indent++
+		for _, s := range tail.Statements {
+			e.emitStatement(s)
+		}
+		e.indent--
+		e.line("}")
+	}
+}
+
+// emitExpr renders an expression to Solidity source. Parentheses are added
+// around binary sub-expressions to preserve grouping without tracking
+// precedence on output.
+func emitExpr(x ast.Expression) string {
+	switch e := x.(type) {
+	case *ast.Identifier:
+		return e.Name
+	case *ast.IntLiteral:
+		return e.Value
+	case *ast.BoolLiteral:
+		if e.Value {
+			return "true"
+		}
+		return "false"
+	case *ast.BinaryExpr:
+		return fmt.Sprintf("%s %s %s", emitOperand(e.Left), e.Op, emitOperand(e.Right))
+	case *ast.CallExpr:
+		args := make([]string, len(e.Args))
+		for i, a := range e.Args {
+			args[i] = emitExpr(a)
+		}
+		return fmt.Sprintf("%s(%s)", emitExpr(e.Callee), strings.Join(args, ", "))
+	}
+	return ""
+}
+
+// emitOperand wraps nested binary expressions in parentheses to keep grouping
+// explicit and unambiguous.
+func emitOperand(x ast.Expression) string {
+	if _, ok := x.(*ast.BinaryExpr); ok {
+		return "(" + emitExpr(x) + ")"
+	}
+	return emitExpr(x)
+}

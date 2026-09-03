@@ -1,0 +1,15 @@
+# Binaries
+/salty
+/bin/
+*.exe
+*.out
+
+# Go
+*.test
+*.prof
+coverage.out
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,16 @@
+// Demonstrates Salty's `switch`, which transpiles to if / else if / else.
+
+contract TrafficLight {
+    uint256 state;
+
+    function duration(uint light) public pure returns (uint) {
+        uint256 secs;
+        switch light {
+            case 0: { secs = 30; }
+            case 1: { secs = 5; }
+            case 2: { secs = 25; }
+            default: { secs = 0; }
+        }
+        return secs;
+    }
+}

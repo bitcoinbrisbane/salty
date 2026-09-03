@@ -1,0 +1,14 @@
+// A minimal Salty contract.
+// Salty is a Solidity-like language that transpiles to Solidity.
+
+contract Counter {
+    uint256 count;
+
+    function increment() public {
+        count = count + 1;
+    }
+
+    function get() public view returns (uint256) {
+        return count;
+    }
+}
