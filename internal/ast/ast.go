@@ -2,6 +2,8 @@
 // parser and consumed by the transpiler (lowering + Solidity emission).
 package ast
 
+import "fmt"
+
 // Node is any AST node.
 type Node interface{ node() }
 
@@ -19,11 +21,13 @@ type Expression interface {
 
 // Type is a Salty type reference. For simple types (e.g. "uint", "uint256",
 // a struct name) only Name is set. For a mapping, Key and Value hold the
-// mapping's key and value types and Name is left empty.
+// mapping's key and value types and Name is left empty. For a decimal (SIP-2),
+// DecimalScale holds the number of fractional places.
 type Type struct {
-	Name  string // simple/elementary type or struct name
-	Key   *Type  // mapping key type, nil for non-mappings
-	Value *Type  // mapping value type, nil for non-mappings
+	Name         string // simple/elementary type or struct name
+	Key          *Type  // mapping key type, nil for non-mappings
+	Value        *Type  // mapping value type, nil for non-mappings
+	DecimalScale *int   // SIP-2: fractional places for decimal types, nil otherwise
 }
 
 func (Type) node() {}
@@ -31,10 +35,16 @@ func (Type) node() {}
 // IsMapping reports whether t is a mapping type.
 func (t Type) IsMapping() bool { return t.Key != nil && t.Value != nil }
 
-// String renders the type as Solidity source, recursively for nested mappings.
+// IsDecimal reports whether t is a decimal type (SIP-2).
+func (t Type) IsDecimal() bool { return t.DecimalScale != nil }
+
+// String renders the type as Salty source, recursively for nested mappings.
 func (t Type) String() string {
 	if t.IsMapping() {
 		return "mapping(" + t.Key.String() + " => " + t.Value.String() + ")"
+	}
+	if t.IsDecimal() {
+		return fmt.Sprintf("decimal(%d)", *t.DecimalScale)
 	}
 	return t.Name
 }
@@ -240,6 +250,18 @@ type StringLiteral struct {
 
 func (*StringLiteral) node() {}
 func (*StringLiteral) expr() {}
+
+// DecimalLiteral is a fixed-point literal such as 1.5 (SIP-2). Text is the
+// original source text; Int and Frac are the integer and fractional digit
+// strings split on the decimal point (Frac excludes the point).
+type DecimalLiteral struct {
+	Text string
+	Int  string
+	Frac string
+}
+
+func (*DecimalLiteral) node() {}
+func (*DecimalLiteral) expr() {}
 
 // BinaryExpr is a binary operation such as a + b or x == y.
 type BinaryExpr struct {

@@ -130,6 +130,42 @@ func TestParseStructAndMapping(t *testing.T) {
 	}
 }
 
+func TestParseDecimalType(t *testing.T) {
+	// SIP-2: decimal defaults to scale 18; decimal(N) carries scale N.
+	src := `contract P {
+    decimal a;
+    decimal(8) b;
+    function f() public {
+        decimal(2) c = 3.14;
+    }
+}`
+
+	file, err := ParseFile(src)
+	if err != nil {
+		t.Fatalf("ParseFile: %v", err)
+	}
+	c := file.Contracts[0]
+
+	a := c.Members[0].(*ast.StateVar)
+	if !a.Type.IsDecimal() || *a.Type.DecimalScale != 18 {
+		t.Fatalf("decimal default scale wrong: %+v", a.Type)
+	}
+	b := c.Members[1].(*ast.StateVar)
+	if !b.Type.IsDecimal() || *b.Type.DecimalScale != 8 {
+		t.Fatalf("decimal(8) scale wrong: %+v", b.Type)
+	}
+
+	fn := c.Members[2].(*ast.Function)
+	decl := fn.Body.Statements[0].(*ast.VarDeclStmt)
+	lit, ok := decl.Value.(*ast.DecimalLiteral)
+	if !ok {
+		t.Fatalf("initializer = %T, want *ast.DecimalLiteral", decl.Value)
+	}
+	if lit.Int != "3" || lit.Frac != "14" {
+		t.Fatalf("decimal literal split wrong: int=%q frac=%q", lit.Int, lit.Frac)
+	}
+}
+
 func TestParseGreeter(t *testing.T) {
 	src := `contract Greeter {
     string greeting;

@@ -105,6 +105,54 @@ func TestTranspileMappingAndStruct(t *testing.T) {
 	}
 }
 
+func TestTranspileDecimal(t *testing.T) {
+	// SIP-2: decimal(N) lowers to uint256; literals scale by 10^N.
+	src := `contract P {
+    decimal price;
+    decimal(8) feeRate;
+    function f() public {
+        decimal p = 1.5;
+        decimal(8) fee = 0.025;
+    }
+}`
+
+	out, err := Transpile(src)
+	if err != nil {
+		t.Fatalf("Transpile: %v", err)
+	}
+
+	for _, want := range []string{
+		"uint256 price;",
+		"uint256 feeRate;",
+		"uint256 p = 1500000000000000000;", // 1.5 at scale 18
+		"uint256 fee = 2500000;",           // 0.025 at scale 8
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q\n---\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "decimal") {
+		t.Errorf("decimal keyword leaked into output:\n%s", out)
+	}
+}
+
+func TestTranspileDecimalExcessPrecision(t *testing.T) {
+	// SIP-2: more fractional digits than the scale is a compile-time error.
+	src := `contract P {
+    function f() public {
+        decimal(2) x = 1.234;
+    }
+}`
+
+	_, err := Transpile(src)
+	if err == nil {
+		t.Fatalf("expected an error for excess precision, got none")
+	}
+	if !strings.Contains(err.Error(), "fractional digits") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestTranspileGreeter(t *testing.T) {
 	src := `contract Greeter {
     string greeting;

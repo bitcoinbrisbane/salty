@@ -77,6 +77,31 @@ m[k].field = 1;`
 	}
 }
 
+func TestDecimalTokens(t *testing.T) {
+	// SIP-2: decimal literals and the decimal keyword; a '.' after an integer
+	// with no following digit (member access) must not become a decimal.
+	input := `decimal(8) x = 1.5;
+a = b.c;`
+
+	want := []struct {
+		typ TokenType
+		lit string
+	}{
+		{TYPE, "decimal"}, {LPAREN, "("}, {INT, "8"}, {RPAREN, ")"},
+		{IDENT, "x"}, {ASSIGN, "="}, {DECIMAL, "1.5"}, {SEMI, ";"},
+		{IDENT, "a"}, {ASSIGN, "="}, {IDENT, "b"}, {DOT, "."}, {IDENT, "c"}, {SEMI, ";"},
+		{EOF, ""},
+	}
+
+	l := New(input)
+	for i, w := range want {
+		got := l.NextToken()
+		if got.Type != w.typ || got.Literal != w.lit {
+			t.Fatalf("token %d: got %v (%q), want %v (%q)", i, got.Type, got.Literal, w.typ, w.lit)
+		}
+	}
+}
+
 func TestConstructorAndStringTokens(t *testing.T) {
 	input := `constructor(string memory g) public {
     greeting = "hi";

@@ -63,6 +63,7 @@ salty transpile examples/traffic.salty        # shows switch -> if/else if/else
 salty transpile examples/token.salty          # shows mappings + structs
 salty transpile examples/events.salty         # shows events + emit
 salty transpile examples/greeter.salty        # the classic Greeter
+salty transpile examples/price.salty          # decimal fixed-point type (SIP-2)
 ```
 
 ## Features
@@ -71,8 +72,29 @@ salty transpile examples/greeter.salty        # the classic Greeter
 - Constructors, string literals, and data-location keywords (`memory`/`storage`/`calldata`).
 - Structs, and mappings (including nested `mapping(K => mapping(K => V))`).
 - Events (with `indexed` params) and the `emit` statement.
+- **`decimal` fixed-point type ([SIP-2](sips/sip-2.md))** — `decimal` / `decimal(N)`
+  lower to `uint256`, and decimal literals like `1.5` scale to integers.
 - Index (`m[key]`) and member (`s.field`) access, chainable (`accounts[owner].balance`).
 - `switch` statement that lowers to `if / else if / else` in Solidity.
 - Type aliases: `uint` → `uint256`, `int` → `int256` (expanded everywhere,
   including inside mappings and struct fields).
 - Auto-emitted SPDX header and `pragma solidity ^0.8.0;`.
+
+### Example: the `decimal` type (SIP-2)
+
+```solidity
+// Salty
+decimal price = 1.5;      // decimal(18)
+decimal(8) feeRate;
+
+// Solidity
+uint256 price = 1500000000000000000;
+uint256 feeRate;
+```
+
+## Contributing: Salty Improvement Proposals (SIPs)
+
+Language changes are proposed as **SIPs**, modelled on Ethereum's EIPs. Open a
+GitHub issue with the *SIP proposal* template (label `sip`) to discuss the
+design, then submit the SIP as `sips/sip-N.md`. See [`sips/`](sips/) and
+[SIP-1](sips/sip-1.md) for the process.

@@ -31,6 +31,24 @@
   <h2>Use</h2>
   <pre><code>salty transpile Counter.salty</code></pre>
 
+  <h2>The <code>decimal</code> type (<a href="https://github.com/bitcoinbrisbane/salty/blob/main/sips/sip-2.md">SIP-2</a>)</h2>
+  <p>Solidity has no usable decimal type, so contracts scale integers by hand.
+  Salty makes it a first-class type: <code>decimal</code> / <code>decimal(N)</code>
+  lower to <code>uint256</code>, and decimal literals are scaled for you.</p>
+  <pre><code>// Salty
+decimal price = 1.5;      // decimal(18)
+decimal(8) feeRate;
+
+// Solidity
+uint256 price = 1500000000000000000;
+uint256 feeRate;</code></pre>
+
+  <h2>Contributing (SIPs)</h2>
+  <p>Language changes are proposed as <strong>Salty Improvement Proposals</strong>,
+  modelled on Ethereum's EIPs: open a GitHub issue with the <em>SIP proposal</em>
+  template, then submit the spec as <code>sips/sip-N.md</code>. See
+  <a href="https://github.com/bitcoinbrisbane/salty/tree/main/sips">the SIP index</a>.</p>
+
   <p><a href="https://github.com/bitcoinbrisbane/salty">Source on GitHub</a></p>
 </body>
 </html>

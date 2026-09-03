@@ -4,6 +4,8 @@ package parser
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/bitcoinbrisbane/salty/internal/ast"
 	"github.com/bitcoinbrisbane/salty/internal/lexer"
@@ -154,10 +156,17 @@ func (p *Parser) parseEvent() (*ast.Event, error) {
 }
 
 // parseType parses a type reference: an elementary type (TYPE), a struct name
-// (IDENT), or a mapping(K => V).
+// (IDENT), a mapping(K => V), or a decimal / decimal(N) (SIP-2).
 func (p *Parser) parseType() (ast.Type, error) {
 	switch p.cur.Type {
-	case lexer.TYPE, lexer.IDENT:
+	case lexer.TYPE:
+		if p.cur.Literal == "decimal" {
+			return p.parseDecimalType()
+		}
+		name := p.cur.Literal
+		p.advance()
+		return ast.Type{Name: name}, nil
+	case lexer.IDENT:
 		name := p.cur.Literal
 		p.advance()
 		return ast.Type{Name: name}, nil
@@ -165,6 +174,31 @@ func (p *Parser) parseType() (ast.Type, error) {
 		return p.parseMappingType()
 	}
 	return ast.Type{}, p.errf("expected a type, got %q", p.cur.Literal)
+}
+
+// parseDecimalType parses `decimal` or `decimal(N)` (SIP-2). A bare `decimal`
+// defaults to scale 18. N must be an integer literal in 0..77.
+func (p *Parser) parseDecimalType() (ast.Type, error) {
+	p.advance() // 'decimal'
+	scale := 18
+	if p.cur.Type == lexer.LPAREN {
+		p.advance()
+		n, err := p.expect(lexer.INT)
+		if err != nil {
+			return ast.Type{}, err
+		}
+		scale, err = strconv.Atoi(n.Literal)
+		if err != nil {
+			return ast.Type{}, p.errf("invalid decimal scale %q", n.Literal)
+		}
+		if scale < 0 || scale > 77 {
+			return ast.Type{}, p.errf("decimal scale %d out of range 0..77", scale)
+		}
+		if _, err := p.expect(lexer.RPAREN); err != nil {
+			return ast.Type{}, err
+		}
+	}
+	return ast.Type{Name: "decimal", DecimalScale: &scale}, nil
 }
 
 // parseMappingType parses mapping(<type> => <type>). The value type may itself
@@ -685,6 +719,12 @@ func (p *Parser) parsePrimary() (ast.Expression, error) {
 		return id, nil
 	case lexer.INT:
 		lit := &ast.IntLiteral{Value: p.cur.Literal}
+		p.advance()
+		return lit, nil
+	case lexer.DECIMAL:
+		// SIP-2: split "1.5" into integer and fractional digit strings.
+		parts := strings.SplitN(p.cur.Literal, ".", 2)
+		lit := &ast.DecimalLiteral{Text: p.cur.Literal, Int: parts[0], Frac: parts[1]}
 		p.advance()
 		return lit, nil
 	case lexer.STRING:

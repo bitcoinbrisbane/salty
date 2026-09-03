@@ -1,0 +1,22 @@
+// SIP-2: the decimal fixed-point type.
+//
+// `decimal` is shorthand for decimal(18); `decimal(N)` has N fractional places.
+// Both lower to uint256, and decimal literals like 1.5 are scaled to their
+// integer representation at transpile time.
+//
+// See sips/sip-2.md.
+
+contract PriceList {
+    decimal price;        // decimal(18)
+    decimal(8) feeRate;   // 8 fractional places
+
+    function setPrice() public {
+        decimal p = 1.5;      // -> 1500000000000000000
+        price = p;
+    }
+
+    function setFee() public {
+        decimal(8) f = 0.025; // -> 2500000
+        feeRate = f;
+    }
+}

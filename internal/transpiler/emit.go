@@ -256,6 +256,12 @@ func emitExpr(x ast.Expression) string {
 		return e.Name
 	case *ast.IntLiteral:
 		return e.Value
+	case *ast.DecimalLiteral:
+		// SIP-2: decimal literals are scaled to integers during lowering when
+		// their target scale is known. Reaching here means the literal appeared
+		// in a position without a known decimal scale; emit the raw text so it
+		// is visible rather than silently wrong.
+		return e.Text
 	case *ast.StringLiteral:
 		return "\"" + e.Value + "\""
 	case *ast.BoolLiteral:

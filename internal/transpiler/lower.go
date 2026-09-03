@@ -1,6 +1,11 @@
 package transpiler
 
-import "github.com/bitcoinbrisbane/salty/internal/ast"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/bitcoinbrisbane/salty/internal/ast"
+)
 
 // typeAliases maps Salty type sugar to the canonical Solidity type. Adding a new
 // alias is a single line here.
@@ -9,14 +14,26 @@ var typeAliases = map[string]string{
 	"int":  "int256",
 }
 
-// lowerFile rewrites a Salty AST into an equivalent AST that maps directly onto
-// Solidity: switch statements become if/else-if chains and type aliases are
-// expanded to their canonical Solidity names.
-func lowerFile(f *ast.File) {
+// lowerer rewrites a Salty AST into an equivalent AST that maps directly onto
+// Solidity. It tracks the scale of decimal-typed variables (SIP-2) so decimal
+// literals assigned to them can be scaled to integers.
+type lowerer struct {
+	// decimalScales maps a variable name in scope to its decimal scale, used to
+	// scale decimal literals at their assignment site (SIP-2).
+	decimalScales map[string]int
+}
+
+// lowerFile lowers f in place, returning the first error encountered (e.g. a
+// decimal literal with more precision than its target type allows).
+func lowerFile(f *ast.File) error {
+	l := &lowerer{decimalScales: map[string]int{}}
 	for _, c := range f.Contracts {
 		for _, m := range c.Members {
 			switch member := m.(type) {
 			case *ast.StateVar:
+				if member.Type.IsDecimal() {
+					l.decimalScales[member.Name] = *member.Type.DecimalScale
+				}
 				member.Type = lowerType(member.Type)
 			case *ast.Struct:
 				for _, field := range member.Fields {
@@ -27,19 +44,26 @@ func lowerFile(f *ast.File) {
 					param.Type = lowerType(param.Type)
 				}
 			case *ast.Function:
-				lowerFunction(member)
+				if err := l.lowerFunction(member); err != nil {
+					return err
+				}
 			}
 		}
 	}
+	return nil
 }
 
-// lowerType expands type aliases, recursing into mapping key and value types so
-// aliases inside mappings (e.g. mapping(address => uint)) are expanded too.
+// lowerType expands type aliases and lowers decimal(N) to uint256 (SIP-2),
+// recursing into mapping key and value types.
 func lowerType(t ast.Type) ast.Type {
 	if t.IsMapping() {
 		key := lowerType(*t.Key)
 		val := lowerType(*t.Value)
 		return ast.Type{Key: &key, Value: &val}
+	}
+	if t.IsDecimal() {
+		// SIP-2: decimal(N) is represented as uint256 fixed-point.
+		return ast.Type{Name: "uint256"}
 	}
 	if canonical, ok := typeAliases[t.Name]; ok {
 		return ast.Type{Name: canonical}
@@ -47,43 +71,119 @@ func lowerType(t ast.Type) ast.Type {
 	return t
 }
 
-func lowerFunction(fn *ast.Function) {
+func (l *lowerer) lowerFunction(fn *ast.Function) error {
 	for _, p := range fn.Params {
+		if p.Type.IsDecimal() {
+			l.decimalScales[p.Name] = *p.Type.DecimalScale
+		}
 		p.Type = lowerType(p.Type)
 	}
 	for _, r := range fn.Returns {
 		r.Type = lowerType(r.Type)
 	}
 	if fn.Body != nil {
-		lowerBlock(fn.Body)
+		return l.lowerBlock(fn.Body)
 	}
+	return nil
 }
 
-func lowerBlock(b *ast.Block) {
+func (l *lowerer) lowerBlock(b *ast.Block) error {
 	for i, s := range b.Statements {
-		b.Statements[i] = lowerStatement(s)
+		lowered, err := l.lowerStatement(s)
+		if err != nil {
+			return err
+		}
+		b.Statements[i] = lowered
 	}
+	return nil
 }
 
-func lowerStatement(s ast.Statement) ast.Statement {
+func (l *lowerer) lowerStatement(s ast.Statement) (ast.Statement, error) {
 	switch stmt := s.(type) {
 	case *ast.VarDeclStmt:
-		stmt.Type = lowerType(stmt.Type)
-		return stmt
-	case *ast.IfStmt:
-		lowerBlock(stmt.Then)
-		if stmt.Else != nil {
-			stmt.Else = lowerStatement(stmt.Else)
+		// SIP-2: a decimal local establishes a scale for its initializer and
+		// for later assignments to it.
+		if stmt.Type.IsDecimal() {
+			scale := *stmt.Type.DecimalScale
+			l.decimalScales[stmt.Name] = scale
+			if stmt.Value != nil {
+				v, err := l.scaleExpr(stmt.Value, scale)
+				if err != nil {
+					return nil, err
+				}
+				stmt.Value = v
+			}
 		}
-		return stmt
+		stmt.Type = lowerType(stmt.Type)
+		return stmt, nil
+	case *ast.AssignStmt:
+		// If the target is a known decimal variable, scale a decimal-literal RHS.
+		if scale, ok := l.assignTargetScale(stmt.Target); ok {
+			v, err := l.scaleExpr(stmt.Value, scale)
+			if err != nil {
+				return nil, err
+			}
+			stmt.Value = v
+		}
+		return stmt, nil
+	case *ast.IfStmt:
+		if err := l.lowerBlock(stmt.Then); err != nil {
+			return nil, err
+		}
+		if stmt.Else != nil {
+			e, err := l.lowerStatement(stmt.Else)
+			if err != nil {
+				return nil, err
+			}
+			stmt.Else = e
+		}
+		return stmt, nil
 	case *ast.Block:
-		lowerBlock(stmt)
-		return stmt
+		if err := l.lowerBlock(stmt); err != nil {
+			return nil, err
+		}
+		return stmt, nil
 	case *ast.SwitchStmt:
-		return lowerSwitch(stmt)
+		return l.lowerSwitch(stmt)
 	default:
-		return s
+		return s, nil
 	}
+}
+
+// assignTargetScale returns the decimal scale of an assignment target if it is a
+// plain decimal-typed variable.
+func (l *lowerer) assignTargetScale(target ast.Expression) (int, bool) {
+	id, ok := target.(*ast.Identifier)
+	if !ok {
+		return 0, false
+	}
+	scale, ok := l.decimalScales[id.Name]
+	return scale, ok
+}
+
+// scaleExpr rewrites a decimal literal (SIP-2) into the integer literal that
+// represents it at the given scale. Non-decimal-literal expressions pass
+// through unchanged. It errors if the literal has more fractional digits than
+// the scale allows (which would lose precision).
+func (l *lowerer) scaleExpr(x ast.Expression, scale int) (ast.Expression, error) {
+	dec, ok := x.(*ast.DecimalLiteral)
+	if !ok {
+		return x, nil
+	}
+	if len(dec.Frac) > scale {
+		return nil, fmt.Errorf(
+			"decimal literal %s has %d fractional digits, more than the scale %d allows",
+			dec.Text, len(dec.Frac), scale)
+	}
+	// Concatenate integer + fractional digits, then pad with zeros so the
+	// value is scaled by exactly 10^scale.
+	digits := dec.Int + dec.Frac
+	digits += strings.Repeat("0", scale-len(dec.Frac))
+	digits = strings.TrimLeft(digits, "0")
+	if digits == "" {
+		digits = "0"
+	}
+	return &ast.IntLiteral{Value: digits}, nil
 }
 
 // lowerSwitch turns a switch into a chain of if / else if / else. Each case
@@ -95,20 +195,24 @@ func lowerStatement(s ast.Statement) ast.Statement {
 //
 // It returns nil-safe: a switch with no cases and no default lowers to an empty
 // block.
-func lowerSwitch(sw *ast.SwitchStmt) ast.Statement {
+func (l *lowerer) lowerSwitch(sw *ast.SwitchStmt) (ast.Statement, error) {
 	// Lower nested statements in each case body first.
 	for _, c := range sw.Cases {
-		lowerBlock(c.Body)
+		if err := l.lowerBlock(c.Body); err != nil {
+			return nil, err
+		}
 	}
 	if sw.Default != nil {
-		lowerBlock(sw.Default)
+		if err := l.lowerBlock(sw.Default); err != nil {
+			return nil, err
+		}
 	}
 
 	if len(sw.Cases) == 0 {
 		if sw.Default != nil {
-			return sw.Default
+			return sw.Default, nil
 		}
-		return &ast.Block{}
+		return &ast.Block{}, nil
 	}
 
 	// Build the chain from the last case backwards so each if's Else points at
@@ -129,5 +233,5 @@ func lowerSwitch(sw *ast.SwitchStmt) ast.Statement {
 		elseBranch = ifStmt
 	}
 
-	return elseBranch
+	return elseBranch, nil
 }

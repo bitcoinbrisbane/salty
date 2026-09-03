@@ -86,8 +86,8 @@ func (l *Lexer) NextToken() Token {
 		lit := l.readIdentifier()
 		return Token{Type: lookupIdent(lit), Literal: lit, Line: line, Col: col}
 	case isDigit(r):
-		lit := l.readNumber()
-		return Token{Type: INT, Literal: lit, Line: line, Col: col}
+		lit, typ := l.readNumber()
+		return Token{Type: typ, Literal: lit, Line: line, Col: col}
 	case r == '"':
 		lit := l.readString()
 		return Token{Type: STRING, Literal: lit, Line: line, Col: col}
@@ -123,12 +123,24 @@ func (l *Lexer) readIdentifier() string {
 	return string(l.input[start:l.pos])
 }
 
-func (l *Lexer) readNumber() string {
+// readNumber reads an integer or a decimal literal. A '.' immediately followed
+// by a digit begins a fractional part and makes the token a DECIMAL (SIP-2);
+// otherwise the token is an INT and a following '.' is left for the scanner
+// (e.g. member access like msg.sender).
+func (l *Lexer) readNumber() (string, TokenType) {
 	start := l.pos
 	for l.pos < len(l.input) && isDigit(l.peek()) {
 		l.advance()
 	}
-	return string(l.input[start:l.pos])
+	typ := INT
+	if l.peek() == '.' && isDigit(l.peekNext()) {
+		typ = DECIMAL
+		l.advance() // '.'
+		for l.pos < len(l.input) && isDigit(l.peek()) {
+			l.advance()
+		}
+	}
+	return string(l.input[start:l.pos]), typ
 }
 
 // readSymbol handles punctuation and operators, including two-character

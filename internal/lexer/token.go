@@ -8,9 +8,10 @@ const (
 	EOF
 
 	// Identifiers and literals.
-	IDENT  // foo, bar, count
-	INT    // 123
-	STRING // "hello"
+	IDENT   // foo, bar, count
+	INT     // 123
+	DECIMAL // 1.5 (SIP-2)
+	STRING  // "hello"
 	// Keywords / built-in type names.
 	CONTRACT
 	FUNCTION
@@ -111,6 +112,7 @@ var keywords = map[string]TokenType{
 	"bool":    TYPE,
 	"address": TYPE,
 	"string":  TYPE,
+	"decimal": TYPE, // SIP-2: decimal / decimal(N) fixed-point type
 }
 
 // lookupIdent returns the keyword token type for ident, or IDENT if it is not
@@ -133,6 +135,8 @@ func (t TokenType) String() string {
 		return "IDENT"
 	case INT:
 		return "INT"
+	case DECIMAL:
+		return "DECIMAL"
 	case STRING:
 		return "STRING"
 	case TYPE:
