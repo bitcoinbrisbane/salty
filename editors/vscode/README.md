@@ -42,5 +42,27 @@ npm run compile      # or: npm run watch
 Press <kbd>F5</kbd> in VS Code to launch an Extension Development Host with the
 extension loaded, then open any file from `examples/`.
 
+## Packaging & installing
+
+Build a shareable `.vsix`:
+
+```bash
+npm run package      # produces salty-<version>.vsix
+```
+
+Install it into VS Code:
+
+```bash
+code --install-extension salty-0.1.0.vsix
+```
+
+…or in VS Code: **Extensions** view → `…` menu → **Install from VSIX…**.
+
+To publish to the Marketplace (requires a publisher and token):
+
+```bash
+npm run publish
+```
+
 The TextMate grammar (`syntaxes/salty.tmLanguage.json`) mirrors the keyword and
 type sets in the transpiler's lexer; keep them in sync when the language grows.
