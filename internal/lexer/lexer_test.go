@@ -77,6 +77,32 @@ m[k].field = 1;`
 	}
 }
 
+func TestConstructorAndStringTokens(t *testing.T) {
+	input := `constructor(string memory g) public {
+    greeting = "hi";
+}`
+
+	want := []struct {
+		typ TokenType
+		lit string
+	}{
+		{CONSTRUCTOR, "constructor"}, {LPAREN, "("},
+		{TYPE, "string"}, {DATALOC, "memory"}, {IDENT, "g"}, {RPAREN, ")"},
+		{PUBLIC, "public"}, {LBRACE, "{"},
+		{IDENT, "greeting"}, {ASSIGN, "="}, {STRING, "hi"}, {SEMI, ";"},
+		{RBRACE, "}"},
+		{EOF, ""},
+	}
+
+	l := New(input)
+	for i, w := range want {
+		got := l.NextToken()
+		if got.Type != w.typ || got.Literal != w.lit {
+			t.Fatalf("token %d: got %v (%q), want %v (%q)", i, got.Type, got.Literal, w.typ, w.lit)
+		}
+	}
+}
+
 func TestEventAndEmitTokens(t *testing.T) {
 	input := `event E(address indexed a, uint b);
 emit E(x, y);`

@@ -8,8 +8,9 @@ const (
 	EOF
 
 	// Identifiers and literals.
-	IDENT // foo, bar, count
-	INT   // 123
+	IDENT  // foo, bar, count
+	INT    // 123
+	STRING // "hello"
 	// Keywords / built-in type names.
 	CONTRACT
 	FUNCTION
@@ -31,7 +32,9 @@ const (
 	EVENT
 	EMIT
 	INDEXED
-	TYPE // a type name such as uint256, uint, int, bool, address
+	CONSTRUCTOR
+	DATALOC // a data-location keyword: memory, storage, calldata
+	TYPE    // a type name such as uint256, uint, int, bool, address
 	TRUE
 	FALSE
 
@@ -90,11 +93,15 @@ var keywords = map[string]TokenType{
 	"default":  DEFAULT,
 	"mapping":  MAPPING,
 	"struct":   STRUCT,
-	"event":    EVENT,
-	"emit":     EMIT,
-	"indexed":  INDEXED,
-	"true":     TRUE,
-	"false":    FALSE,
+	"event":       EVENT,
+	"emit":        EMIT,
+	"indexed":     INDEXED,
+	"constructor": CONSTRUCTOR,
+	"memory":      DATALOC,
+	"storage":     DATALOC,
+	"calldata":    DATALOC,
+	"true":        TRUE,
+	"false":       FALSE,
 
 	// Built-in types.
 	"uint256": TYPE,
@@ -126,8 +133,12 @@ func (t TokenType) String() string {
 		return "IDENT"
 	case INT:
 		return "INT"
+	case STRING:
+		return "STRING"
 	case TYPE:
 		return "TYPE"
+	case DATALOC:
+		return "DATALOC"
 	}
 	if name, ok := tokenNames[t]; ok {
 		return name
@@ -141,7 +152,7 @@ var tokenNames = map[TokenType]string{
 	VIEW: "view", PURE: "pure", RETURNS: "returns", RETURN: "return",
 	IF: "if", ELSE: "else", SWITCH: "switch", CASE: "case", DEFAULT: "default",
 	MAPPING: "mapping", STRUCT: "struct", EVENT: "event", EMIT: "emit",
-	INDEXED: "indexed", TRUE: "true", FALSE: "false",
+	INDEXED: "indexed", CONSTRUCTOR: "constructor", TRUE: "true", FALSE: "false",
 	LBRACE: "{", RBRACE: "}", LPAREN: "(", RPAREN: ")",
 	LBRACKET: "[", RBRACKET: "]", SEMI: ";",
 	COMMA: ",", COLON: ":", DOT: ".", ASSIGN: "=", ARROW: "=>",

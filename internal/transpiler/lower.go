@@ -51,8 +51,8 @@ func lowerFunction(fn *ast.Function) {
 	for _, p := range fn.Params {
 		p.Type = lowerType(p.Type)
 	}
-	for i := range fn.Returns {
-		fn.Returns[i] = lowerType(fn.Returns[i])
+	for _, r := range fn.Returns {
+		r.Type = lowerType(r.Type)
 	}
 	if fn.Body != nil {
 		lowerBlock(fn.Body)

@@ -1,0 +1,19 @@
+// The classic Greeter contract: a stored greeting set at construction,
+// readable and updatable. Demonstrates constructors, string literals, and
+// data-location keywords (memory).
+
+contract Greeter {
+    string greeting;
+
+    constructor(string memory initial) public {
+        greeting = initial;
+    }
+
+    function greet() public view returns (string memory) {
+        return greeting;
+    }
+
+    function setGreeting(string memory newGreeting) public {
+        greeting = newGreeting;
+    }
+}

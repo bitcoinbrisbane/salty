@@ -105,6 +105,53 @@ func TestTranspileMappingAndStruct(t *testing.T) {
 	}
 }
 
+func TestTranspileGreeter(t *testing.T) {
+	src := `contract Greeter {
+    string greeting;
+    constructor(string memory initial) public {
+        greeting = initial;
+    }
+    function greet() public view returns (string memory) {
+        return greeting;
+    }
+    function setGreeting(string memory newGreeting) public {
+        greeting = newGreeting;
+    }
+}`
+
+	out, err := Transpile(src)
+	if err != nil {
+		t.Fatalf("Transpile: %v", err)
+	}
+
+	for _, want := range []string{
+		"string greeting;",
+		"constructor(string memory initial) public {",           // constructor + data location
+		"function greet() public view returns (string memory) {", // return data location
+		"function setGreeting(string memory newGreeting) public {",
+		"return greeting;",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q\n---\n%s", want, out)
+		}
+	}
+}
+
+func TestTranspileStringLiteral(t *testing.T) {
+	src := `contract T {
+    string s;
+    constructor() public { s = "Hello, World!"; }
+}`
+
+	out, err := Transpile(src)
+	if err != nil {
+		t.Fatalf("Transpile: %v", err)
+	}
+	if !strings.Contains(out, `s = "Hello, World!";`) {
+		t.Errorf("string literal not emitted correctly:\n%s", out)
+	}
+}
+
 func TestTranspileEventAndEmit(t *testing.T) {
 	src := `contract Wallet {
     event Deposit(address indexed from, uint amount);

@@ -97,6 +97,8 @@ func (p *Parser) parseMember() (ast.Node, error) {
 	switch p.cur.Type {
 	case lexer.FUNCTION:
 		return p.parseFunction()
+	case lexer.CONSTRUCTOR:
+		return p.parseConstructor()
 	case lexer.STRUCT:
 		return p.parseStruct()
 	case lexer.EVENT:
@@ -104,7 +106,7 @@ func (p *Parser) parseMember() (ast.Node, error) {
 	case lexer.TYPE, lexer.MAPPING, lexer.IDENT:
 		return p.parseStateVar()
 	}
-	return nil, p.errf("expected 'function', 'struct', 'event', or a type, got %q", p.cur.Literal)
+	return nil, p.errf("expected 'function', 'constructor', 'struct', 'event', or a type, got %q", p.cur.Literal)
 }
 
 // parseEvent parses:
@@ -248,20 +250,77 @@ func (p *Parser) parseFunction() (*ast.Function, error) {
 	}
 	fn := &ast.Function{Name: name.Literal}
 
-	// Params.
+	params, err := p.parseParamList()
+	if err != nil {
+		return nil, err
+	}
+	fn.Params = params
+
+	p.parseModifiers(fn)
+
+	// Optional returns.
+	if p.cur.Type == lexer.RETURNS {
+		p.advance()
+		returns, err := p.parseParamList()
+		if err != nil {
+			return nil, err
+		}
+		fn.Returns = returns
+	}
+
+	body, err := p.parseBlock()
+	if err != nil {
+		return nil, err
+	}
+	fn.Body = body
+	return fn, nil
+}
+
+func (p *Parser) parseConstructor() (*ast.Function, error) {
+	if _, err := p.expect(lexer.CONSTRUCTOR); err != nil {
+		return nil, err
+	}
+	fn := &ast.Function{IsConstructor: true}
+
+	params, err := p.parseParamList()
+	if err != nil {
+		return nil, err
+	}
+	fn.Params = params
+
+	p.parseModifiers(fn)
+
+	body, err := p.parseBlock()
+	if err != nil {
+		return nil, err
+	}
+	fn.Body = body
+	return fn, nil
+}
+
+// parseParamList parses a parenthesized, comma-separated list of parameters.
+// Each parameter is a type, an optional data-location keyword, and an optional
+// name — the same shape used for both function parameters and return values.
+func (p *Parser) parseParamList() ([]*ast.Param, error) {
 	if _, err := p.expect(lexer.LPAREN); err != nil {
 		return nil, err
 	}
-	for p.cur.Type != lexer.RPAREN {
-		ptyp, err := p.parseType()
+	var params []*ast.Param
+	for p.cur.Type != lexer.RPAREN && p.cur.Type != lexer.EOF {
+		typ, err := p.parseType()
 		if err != nil {
 			return nil, err
 		}
-		pname, err := p.expect(lexer.IDENT)
-		if err != nil {
-			return nil, err
+		param := &ast.Param{Type: typ}
+		if p.cur.Type == lexer.DATALOC {
+			param.DataLoc = p.cur.Literal
+			p.advance()
 		}
-		fn.Params = append(fn.Params, &ast.Param{Type: ptyp, Name: pname.Literal})
+		if p.cur.Type == lexer.IDENT {
+			param.Name = p.cur.Literal
+			p.advance()
+		}
+		params = append(params, param)
 		if p.cur.Type == lexer.COMMA {
 			p.advance()
 		}
@@ -269,8 +328,11 @@ func (p *Parser) parseFunction() (*ast.Function, error) {
 	if _, err := p.expect(lexer.RPAREN); err != nil {
 		return nil, err
 	}
+	return params, nil
+}
 
-	// Modifiers: visibility and mutability, in any order.
+// parseModifiers consumes visibility and mutability keywords in any order.
+func (p *Parser) parseModifiers(fn *ast.Function) {
 	for {
 		switch p.cur.Type {
 		case lexer.PUBLIC, lexer.PRIVATE, lexer.INTERNAL, lexer.EXTERNAL:
@@ -280,38 +342,9 @@ func (p *Parser) parseFunction() (*ast.Function, error) {
 			fn.Mutability = p.cur.Literal
 			p.advance()
 		default:
-			goto modifiersDone
+			return
 		}
 	}
-modifiersDone:
-
-	// Optional returns.
-	if p.cur.Type == lexer.RETURNS {
-		p.advance()
-		if _, err := p.expect(lexer.LPAREN); err != nil {
-			return nil, err
-		}
-		for p.cur.Type != lexer.RPAREN {
-			rtyp, err := p.parseType()
-			if err != nil {
-				return nil, err
-			}
-			fn.Returns = append(fn.Returns, rtyp)
-			if p.cur.Type == lexer.COMMA {
-				p.advance()
-			}
-		}
-		if _, err := p.expect(lexer.RPAREN); err != nil {
-			return nil, err
-		}
-	}
-
-	body, err := p.parseBlock()
-	if err != nil {
-		return nil, err
-	}
-	fn.Body = body
-	return fn, nil
 }
 
 func (p *Parser) parseBlock() (*ast.Block, error) {
@@ -397,11 +430,16 @@ func (p *Parser) parseVarDecl() (ast.Statement, error) {
 	if err != nil {
 		return nil, err
 	}
+	decl := &ast.VarDeclStmt{Type: typ}
+	if p.cur.Type == lexer.DATALOC {
+		decl.DataLoc = p.cur.Literal
+		p.advance()
+	}
 	name, err := p.expect(lexer.IDENT)
 	if err != nil {
 		return nil, err
 	}
-	decl := &ast.VarDeclStmt{Type: typ, Name: name.Literal}
+	decl.Name = name.Literal
 	if p.cur.Type == lexer.ASSIGN {
 		p.advance()
 		val, err := p.parseExpression(lowest)
@@ -647,6 +685,10 @@ func (p *Parser) parsePrimary() (ast.Expression, error) {
 		return id, nil
 	case lexer.INT:
 		lit := &ast.IntLiteral{Value: p.cur.Literal}
+		p.advance()
+		return lit, nil
+	case lexer.STRING:
+		lit := &ast.StringLiteral{Value: p.cur.Literal}
 		p.advance()
 		return lit, nil
 	case lexer.TRUE:

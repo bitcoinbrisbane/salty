@@ -107,17 +107,14 @@ func (e *emitter) emitStruct(s *ast.Struct) {
 
 func (e *emitter) emitFunction(fn *ast.Function) {
 	var sig strings.Builder
-	sig.WriteString("function ")
-	sig.WriteString(fn.Name)
-	sig.WriteString("(")
-	for i, p := range fn.Params {
-		if i > 0 {
-			sig.WriteString(", ")
-		}
-		sig.WriteString(p.Type.String())
-		sig.WriteString(" ")
-		sig.WriteString(p.Name)
+	if fn.IsConstructor {
+		sig.WriteString("constructor")
+	} else {
+		sig.WriteString("function ")
+		sig.WriteString(fn.Name)
 	}
+	sig.WriteString("(")
+	sig.WriteString(formatParams(fn.Params))
 	sig.WriteString(")")
 	if fn.Visibility != "" {
 		sig.WriteString(" ")
@@ -129,12 +126,7 @@ func (e *emitter) emitFunction(fn *ast.Function) {
 	}
 	if len(fn.Returns) > 0 {
 		sig.WriteString(" returns (")
-		for i, r := range fn.Returns {
-			if i > 0 {
-				sig.WriteString(", ")
-			}
-			sig.WriteString(r.String())
-		}
+		sig.WriteString(formatParams(fn.Returns))
 		sig.WriteString(")")
 	}
 	sig.WriteString(" {")
@@ -148,13 +140,35 @@ func (e *emitter) emitFunction(fn *ast.Function) {
 	e.line("}")
 }
 
+// formatParams renders a comma-separated parameter/return list, including data
+// locations and names when present.
+func formatParams(params []*ast.Param) string {
+	parts := make([]string, len(params))
+	for i, p := range params {
+		s := p.Type.String()
+		if p.DataLoc != "" {
+			s += " " + p.DataLoc
+		}
+		if p.Name != "" {
+			s += " " + p.Name
+		}
+		parts[i] = s
+	}
+	return strings.Join(parts, ", ")
+}
+
 func (e *emitter) emitStatement(s ast.Statement) {
 	switch stmt := s.(type) {
 	case *ast.VarDeclStmt:
+		decl := stmt.Type.String()
+		if stmt.DataLoc != "" {
+			decl += " " + stmt.DataLoc
+		}
+		decl += " " + stmt.Name
 		if stmt.Value != nil {
-			e.line(fmt.Sprintf("%s %s = %s;", stmt.Type.String(), stmt.Name, emitExpr(stmt.Value)))
+			e.line(fmt.Sprintf("%s = %s;", decl, emitExpr(stmt.Value)))
 		} else {
-			e.line(fmt.Sprintf("%s %s;", stmt.Type.String(), stmt.Name))
+			e.line(decl + ";")
 		}
 	case *ast.AssignStmt:
 		e.line(fmt.Sprintf("%s = %s;", emitExpr(stmt.Target), emitExpr(stmt.Value)))
@@ -242,6 +256,8 @@ func emitExpr(x ast.Expression) string {
 		return e.Name
 	case *ast.IntLiteral:
 		return e.Value
+	case *ast.StringLiteral:
+		return "\"" + e.Value + "\""
 	case *ast.BoolLiteral:
 		if e.Value {
 			return "true"

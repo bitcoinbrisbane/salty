@@ -88,9 +88,31 @@ func (l *Lexer) NextToken() Token {
 	case isDigit(r):
 		lit := l.readNumber()
 		return Token{Type: INT, Literal: lit, Line: line, Col: col}
+	case r == '"':
+		lit := l.readString()
+		return Token{Type: STRING, Literal: lit, Line: line, Col: col}
 	}
 
 	return l.readSymbol(line, col)
+}
+
+// readString reads a double-quoted string literal, returning the contents
+// without the surrounding quotes. Supports \" and \\ escapes.
+func (l *Lexer) readString() string {
+	l.advance() // opening quote
+	var sb []rune
+	for l.pos < len(l.input) && l.peek() != '"' {
+		r := l.advance()
+		if r == '\\' && l.pos < len(l.input) {
+			sb = append(sb, r, l.advance())
+			continue
+		}
+		sb = append(sb, r)
+	}
+	if l.pos < len(l.input) {
+		l.advance() // closing quote
+	}
+	return string(sb)
 }
 
 func (l *Lexer) readIdentifier() string {

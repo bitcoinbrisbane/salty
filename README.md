@@ -62,11 +62,13 @@ salty transpile examples/counter.salty -o Counter.sol
 salty transpile examples/traffic.salty        # shows switch -> if/else if/else
 salty transpile examples/token.salty          # shows mappings + structs
 salty transpile examples/events.salty         # shows events + emit
+salty transpile examples/greeter.salty        # the classic Greeter
 ```
 
 ## Features
 
 - Contracts, state variables, functions (visibility + `view`/`pure`, returns).
+- Constructors, string literals, and data-location keywords (`memory`/`storage`/`calldata`).
 - Structs, and mappings (including nested `mapping(K => mapping(K => V))`).
 - Events (with `indexed` params) and the `emit` statement.
 - Index (`m[key]`) and member (`s.field`) access, chainable (`accounts[owner].balance`).

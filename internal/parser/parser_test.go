@@ -130,6 +130,61 @@ func TestParseStructAndMapping(t *testing.T) {
 	}
 }
 
+func TestParseGreeter(t *testing.T) {
+	src := `contract Greeter {
+    string greeting;
+    constructor(string memory initial) public {
+        greeting = initial;
+    }
+    function greet() public view returns (string memory) {
+        return greeting;
+    }
+}`
+
+	file, err := ParseFile(src)
+	if err != nil {
+		t.Fatalf("ParseFile: %v", err)
+	}
+	c := file.Contracts[0]
+
+	ctor, ok := c.Members[1].(*ast.Function)
+	if !ok || !ctor.IsConstructor {
+		t.Fatalf("member 1 = %T (constructor=%v), want a constructor", c.Members[1], ok && ctor.IsConstructor)
+	}
+	if len(ctor.Params) != 1 {
+		t.Fatalf("constructor params = %d, want 1", len(ctor.Params))
+	}
+	if ctor.Params[0].DataLoc != "memory" || ctor.Params[0].Type.Name != "string" {
+		t.Fatalf("constructor param wrong: type=%q loc=%q", ctor.Params[0].Type.Name, ctor.Params[0].DataLoc)
+	}
+
+	greet := c.Members[2].(*ast.Function)
+	if len(greet.Returns) != 1 || greet.Returns[0].DataLoc != "memory" {
+		t.Fatalf("greet return wrong: %+v", greet.Returns)
+	}
+}
+
+func TestParseStringLiteral(t *testing.T) {
+	src := `contract T {
+    string s;
+    constructor() public { s = "Hello, World!"; }
+}`
+
+	file, err := ParseFile(src)
+	if err != nil {
+		t.Fatalf("ParseFile: %v", err)
+	}
+	ctor := file.Contracts[0].Members[1].(*ast.Function)
+	assign := ctor.Body.Statements[0].(*ast.AssignStmt)
+	lit, ok := assign.Value.(*ast.StringLiteral)
+	if !ok {
+		t.Fatalf("assign value = %T, want *ast.StringLiteral", assign.Value)
+	}
+	if lit.Value != "Hello, World!" {
+		t.Fatalf("string value = %q, want %q", lit.Value, "Hello, World!")
+	}
+}
+
 func TestParseEventAndEmit(t *testing.T) {
 	src := `contract W {
     event Deposit(address indexed from, uint amount);

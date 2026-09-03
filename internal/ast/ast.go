@@ -98,22 +98,26 @@ type StateVar struct {
 
 func (*StateVar) node() {}
 
-// Param is a single function parameter.
+// Param is a single function parameter or return value. Name may be empty
+// (common for return values). DataLoc is a data-location keyword ("memory",
+// "storage", "calldata") or "" when none is specified.
 type Param struct {
-	Type Type
-	Name string
+	Type    Type
+	Name    string
+	DataLoc string
 }
 
 func (*Param) node() {}
 
-// Function is a contract function.
+// Function is a contract function or constructor.
 type Function struct {
-	Name       string
-	Params     []*Param
-	Visibility string // "public", "private", "internal", "external", or ""
-	Mutability string // "view", "pure", or ""
-	Returns    []Type // return types, in order
-	Body       *Block
+	Name          string
+	IsConstructor bool
+	Params        []*Param
+	Visibility    string   // "public", "private", "internal", "external", or ""
+	Mutability    string   // "view", "pure", or ""
+	Returns       []*Param // return values, in order
+	Body          *Block
 }
 
 func (*Function) node() {}
@@ -129,10 +133,12 @@ func (*Block) node() {}
 func (*Block) stmt() {}
 
 // VarDeclStmt is a local variable declaration, optionally with an initializer.
+// DataLoc is a data-location keyword ("memory", "storage", "calldata") or "".
 type VarDeclStmt struct {
-	Type  Type
-	Name  string
-	Value Expression // may be nil
+	Type    Type
+	Name    string
+	DataLoc string
+	Value   Expression // may be nil
 }
 
 func (*VarDeclStmt) node() {}
@@ -225,6 +231,15 @@ type BoolLiteral struct {
 
 func (*BoolLiteral) node() {}
 func (*BoolLiteral) expr() {}
+
+// StringLiteral is a double-quoted string. Value holds the contents without the
+// surrounding quotes.
+type StringLiteral struct {
+	Value string
+}
+
+func (*StringLiteral) node() {}
+func (*StringLiteral) expr() {}
 
 // BinaryExpr is a binary operation such as a + b or x == y.
 type BinaryExpr struct {
