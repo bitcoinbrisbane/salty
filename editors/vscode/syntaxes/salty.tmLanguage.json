@@ -1,0 +1,105 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Salty",
+  "scopeName": "source.salty",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#constants" },
+    { "include": "#declarations" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.salty",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.salty",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.salty",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.salty",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "comment": "Decimal literal (SIP-2): digits '.' digits",
+          "name": "constant.numeric.decimal.salty",
+          "match": "\\b[0-9]+\\.[0-9]+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.salty",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "comment": "Control flow",
+          "name": "keyword.control.salty",
+          "match": "\\b(if|else|switch|case|default|return|emit)\\b"
+        },
+        {
+          "comment": "Visibility and mutability modifiers",
+          "name": "storage.modifier.salty",
+          "match": "\\b(public|private|internal|external|view|pure|indexed|memory|storage|calldata)\\b"
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "comment": "Declaration keyword followed by a name",
+          "match": "\\b(contract|struct|event)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.salty" },
+            "2": { "name": "entity.name.type.salty" }
+          }
+        },
+        {
+          "comment": "function <name>",
+          "match": "\\b(function)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.salty" },
+            "2": { "name": "entity.name.function.salty" }
+          }
+        },
+        {
+          "name": "keyword.declaration.salty",
+          "match": "\\b(contract|struct|event|function|constructor|mapping|returns)\\b"
+        }
+      ]
+    },
+    "types": {
+      "comment": "Built-in types, including decimal (SIP-2). uint/int have optional bit-width suffixes.",
+      "name": "support.type.salty",
+      "match": "\\b(uint256|uint|int256|int|bool|address|string|decimal)\\b"
+    },
+    "constants": {
+      "name": "constant.language.salty",
+      "match": "\\b(true|false)\\b"
+    },
+    "operators": {
+      "name": "keyword.operator.salty",
+      "match": "(==|!=|<=|>=|=>|[+\\-*/<>=])"
+    }
+  }
+}

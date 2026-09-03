@@ -1,0 +1,91 @@
+{
+  "name": "salty",
+  "displayName": "Salty",
+  "description": "Syntax highlighting and transpile command for the Salty language (Salty -> Solidity).",
+  "version": "0.1.0",
+  "publisher": "bitcoinbrisbane",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bitcoinbrisbane/salty.git",
+    "directory": "editors/vscode"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "salty",
+    "solidity",
+    "transpiler",
+    "smart contracts"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "languages": [
+      {
+        "id": "salty",
+        "aliases": [
+          "Salty",
+          "salty"
+        ],
+        "extensions": [
+          ".salty"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "salty",
+        "scopeName": "source.salty",
+        "path": "./syntaxes/salty.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "salty.transpile",
+        "title": "Salty: Transpile to Solidity",
+        "category": "Salty"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "when": "resourceLangId == salty",
+          "command": "salty.transpile",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "salty.transpile",
+          "when": "resourceLangId == salty"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Salty",
+      "properties": {
+        "salty.cliPath": {
+          "type": "string",
+          "default": "salty",
+          "description": "Path to the salty CLI executable. Defaults to 'salty' on your PATH."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.75.0",
+    "typescript": "^5.4.0"
+  }
+}

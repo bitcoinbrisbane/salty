@@ -24,6 +24,8 @@ internal/ast/        # AST node definitions
 internal/transpiler/ # AST -> Solidity emitter
 web/                 # pure HTML site (no framework)
 examples/            # sample .salty inputs
+sips/                # Salty Improvement Proposals
+editors/vscode/      # VS Code extension (highlighting + transpile command)
 ```
 
 ## Install
@@ -91,6 +93,14 @@ decimal(8) feeRate;
 uint256 price = 1500000000000000000;
 uint256 feeRate;
 ```
+
+## Editor support
+
+A VS Code extension lives in [`editors/vscode/`](editors/vscode/): syntax
+highlighting for `.salty` files (including `decimal` literals) and a
+**Salty: Transpile to Solidity** command that runs the CLI and opens the output
+beside your source. See its [README](editors/vscode/README.md) to build and run
+it.
 
 ## Contributing: Salty Improvement Proposals (SIPs)
 
