@@ -1,0 +1,35 @@
+// SIP-3: dynamic array types.
+//
+// T[] is a dynamic array. Element access a[i], .length, .push(x) and .pop()
+// lower 1:1 to Solidity. Element types are lowered by the usual rules, so
+// uint[] becomes uint256[] and decimal(18)[] becomes uint256[] (SIP-2).
+//
+// See sips/sip-3.md.
+
+contract Registry {
+    uint[] ids;
+    address[] holders;
+    decimal(18)[] prices;
+
+    function add(uint id, address who) public {
+        ids.push(id);
+        holders.push(who);
+    }
+
+    function removeLast() public {
+        ids.pop();
+    }
+
+    function count() public view returns (uint) {
+        return ids.length;
+    }
+
+    function first() public view returns (uint) {
+        return ids[0];
+    }
+
+    function sum(uint[] memory xs) public pure returns (uint) {
+        uint total = 0;
+        return total;
+    }
+}

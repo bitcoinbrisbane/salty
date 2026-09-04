@@ -66,6 +66,7 @@ salty transpile examples/token.salty          # shows mappings + structs
 salty transpile examples/events.salty         # shows events + emit
 salty transpile examples/greeter.salty        # the classic Greeter
 salty transpile examples/price.salty          # decimal fixed-point type (SIP-2)
+salty transpile examples/arrays.salty         # dynamic arrays (SIP-3)
 ```
 
 ## Features
@@ -76,6 +77,8 @@ salty transpile examples/price.salty          # decimal fixed-point type (SIP-2)
 - Events (with `indexed` params) and the `emit` statement.
 - **`decimal` fixed-point type ([SIP-2](sips/sip-2.md))** — `decimal` / `decimal(N)`
   lower to `uint256`, and decimal literals like `1.5` scale to integers.
+- **Dynamic arrays ([SIP-3](sips/sip-3.md))** — `T[]` (nestable), with `a[i]`,
+  `a.length`, `a.push(x)`, `a.pop()`.
 - Index (`m[key]`) and member (`s.field`) access, chainable (`accounts[owner].balance`).
 - `switch` statement that lowers to `if / else if / else` in Solidity.
 - Type aliases: `uint` → `uint256`, `int` → `int256` (expanded everywhere,
@@ -92,6 +95,20 @@ decimal(8) feeRate;
 // Solidity
 uint256 price = 1500000000000000000;
 uint256 feeRate;
+```
+
+### Example: dynamic arrays (SIP-3)
+
+```solidity
+// Salty
+uint[] ids;
+decimal(18)[] prices;
+ids.push(id);
+
+// Solidity
+uint256[] ids;
+uint256[] prices;
+ids.push(id);
 ```
 
 ## Editor support

@@ -200,6 +200,44 @@ func TestTranspileStringLiteral(t *testing.T) {
 	}
 }
 
+func TestTranspileArrays(t *testing.T) {
+	// SIP-3: T[] lowers to Solidity arrays; element types lower by the usual
+	// rules (uint->uint256, decimal(N)->uint256).
+	src := `contract R {
+    uint[] ids;
+    decimal(18)[] prices;
+    uint[][] grid;
+    function add(uint id) public {
+        ids.push(id);
+    }
+    function count() public view returns (uint) {
+        return ids.length;
+    }
+    function f(uint[] memory xs) public pure returns (uint) {
+        return xs[0];
+    }
+}`
+
+	out, err := Transpile(src)
+	if err != nil {
+		t.Fatalf("Transpile: %v", err)
+	}
+
+	for _, want := range []string{
+		"uint256[] ids;",
+		"uint256[] prices;",   // decimal(18)[] element lowered (SIP-2)
+		"uint256[][] grid;",   // nested array
+		"ids.push(id);",
+		"return ids.length;",
+		"function f(uint256[] memory xs) public pure returns (uint256) {",
+		"return xs[0];",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q\n---\n%s", want, out)
+		}
+	}
+}
+
 func TestTranspileEventAndEmit(t *testing.T) {
 	src := `contract Wallet {
     event Deposit(address indexed from, uint amount);

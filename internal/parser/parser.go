@@ -156,8 +156,27 @@ func (p *Parser) parseEvent() (*ast.Event, error) {
 }
 
 // parseType parses a type reference: an elementary type (TYPE), a struct name
-// (IDENT), a mapping(K => V), or a decimal / decimal(N) (SIP-2).
+// (IDENT), a mapping(K => V), or a decimal / decimal(N) (SIP-2), followed by
+// zero or more `[]` dynamic-array suffixes (SIP-3), e.g. uint[] or uint[][].
 func (p *Parser) parseType() (ast.Type, error) {
+	typ, err := p.parseBaseType()
+	if err != nil {
+		return ast.Type{}, err
+	}
+	// SIP-3: each trailing `[]` wraps the type in a dynamic array.
+	for p.cur.Type == lexer.LBRACKET {
+		p.advance() // [
+		if _, err := p.expect(lexer.RBRACKET); err != nil {
+			return ast.Type{}, err
+		}
+		elem := typ
+		typ = ast.Type{Elem: &elem}
+	}
+	return typ, nil
+}
+
+// parseBaseType parses a type without any trailing array suffix.
+func (p *Parser) parseBaseType() (ast.Type, error) {
 	switch p.cur.Type {
 	case lexer.TYPE:
 		if p.cur.Literal == "decimal" {
@@ -415,7 +434,10 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 		// A struct-typed local declaration looks like `Account a` — an
 		// identifier (the type) immediately followed by another identifier
 		// (the name). Anything else starting with an identifier is an
-		// expression or assignment.
+		// expression or assignment. Note: struct-typed *array* locals
+		// (`Account[] xs`) are ambiguous with index assignment (`xs[0] = ...`)
+		// under two-token lookahead, so they are not parsed as locals here;
+		// use them as state variables / parameters / returns (SIP-3).
 		if p.next.Type == lexer.IDENT {
 			return p.parseVarDecl()
 		}

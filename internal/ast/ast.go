@@ -22,12 +22,14 @@ type Expression interface {
 // Type is a Salty type reference. For simple types (e.g. "uint", "uint256",
 // a struct name) only Name is set. For a mapping, Key and Value hold the
 // mapping's key and value types and Name is left empty. For a decimal (SIP-2),
-// DecimalScale holds the number of fractional places.
+// DecimalScale holds the number of fractional places. For a dynamic array
+// (SIP-3), Elem holds the element type.
 type Type struct {
 	Name         string // simple/elementary type or struct name
 	Key          *Type  // mapping key type, nil for non-mappings
 	Value        *Type  // mapping value type, nil for non-mappings
 	DecimalScale *int   // SIP-2: fractional places for decimal types, nil otherwise
+	Elem         *Type  // SIP-3: element type for dynamic arrays, nil otherwise
 }
 
 func (Type) node() {}
@@ -38,8 +40,15 @@ func (t Type) IsMapping() bool { return t.Key != nil && t.Value != nil }
 // IsDecimal reports whether t is a decimal type (SIP-2).
 func (t Type) IsDecimal() bool { return t.DecimalScale != nil }
 
-// String renders the type as Salty source, recursively for nested mappings.
+// IsArray reports whether t is a dynamic array type (SIP-3).
+func (t Type) IsArray() bool { return t.Elem != nil }
+
+// String renders the type as Salty source, recursively for nested mappings and
+// arrays.
 func (t Type) String() string {
+	if t.IsArray() {
+		return t.Elem.String() + "[]"
+	}
 	if t.IsMapping() {
 		return "mapping(" + t.Key.String() + " => " + t.Value.String() + ")"
 	}

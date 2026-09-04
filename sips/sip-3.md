@@ -87,6 +87,11 @@ function ids(uint256[] memory input) public returns (uint256[] memory) { ... }
 - **Fixed-size arrays deferred.** `T[N]` fixed-size arrays are a separate,
   smaller feature and can be a later SIP; dynamic arrays are the common case and
   what `sort` needs.
+- **Struct-typed array *locals* deferred.** A local like `Account[] xs;` is
+  ambiguous with index assignment (`xs[0] = ...`) under the parser's two-token
+  lookahead. Struct arrays are fully supported as state variables, parameters,
+  and returns; only local declarations of struct arrays are out of scope for the
+  first implementation. Elementary-typed array locals (`uint[] xs`) work.
 
 ## Backwards compatibility
 

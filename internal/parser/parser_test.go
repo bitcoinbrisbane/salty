@@ -166,6 +166,36 @@ func TestParseDecimalType(t *testing.T) {
 	}
 }
 
+func TestParseArrayType(t *testing.T) {
+	// SIP-3: T[] dynamic arrays, including nested T[][].
+	src := `contract R {
+    uint[] ids;
+    uint[][] grid;
+}`
+
+	file, err := ParseFile(src)
+	if err != nil {
+		t.Fatalf("ParseFile: %v", err)
+	}
+	c := file.Contracts[0]
+
+	ids := c.Members[0].(*ast.StateVar)
+	if !ids.Type.IsArray() {
+		t.Fatalf("ids is not an array: %+v", ids.Type)
+	}
+	if ids.Type.Elem.Name != "uint" {
+		t.Fatalf("ids element type = %q, want uint", ids.Type.Elem.Name)
+	}
+
+	grid := c.Members[1].(*ast.StateVar)
+	if !grid.Type.IsArray() || !grid.Type.Elem.IsArray() {
+		t.Fatalf("grid is not a nested array: %+v", grid.Type)
+	}
+	if grid.Type.Elem.Elem.Name != "uint" {
+		t.Fatalf("grid inner element = %q, want uint", grid.Type.Elem.Elem.Name)
+	}
+}
+
 func TestParseGreeter(t *testing.T) {
 	src := `contract Greeter {
     string greeting;

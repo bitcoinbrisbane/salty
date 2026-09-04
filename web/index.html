@@ -43,6 +43,20 @@ decimal(8) feeRate;
 uint256 price = 1500000000000000000;
 uint256 feeRate;</code></pre>
 
+  <h2>Dynamic arrays (<a href="https://github.com/bitcoinbrisbane/salty/blob/main/sips/sip-3.md">SIP-3</a>)</h2>
+  <p><code>T[]</code> dynamic arrays with <code>a[i]</code>, <code>a.length</code>,
+  <code>a.push(x)</code> and <code>a.pop()</code>. Element types lower by the
+  usual rules.</p>
+  <pre><code>// Salty
+uint[] ids;
+decimal(18)[] prices;
+ids.push(id);
+
+// Solidity
+uint256[] ids;
+uint256[] prices;
+ids.push(id);</code></pre>
+
   <h2>Contributing (SIPs)</h2>
   <p>Language changes are proposed as <strong>Salty Improvement Proposals</strong>,
   modelled on Ethereum's EIPs: open a GitHub issue with the <em>SIP proposal</em>

@@ -56,6 +56,11 @@ func lowerFile(f *ast.File) error {
 // lowerType expands type aliases and lowers decimal(N) to uint256 (SIP-2),
 // recursing into mapping key and value types.
 func lowerType(t ast.Type) ast.Type {
+	if t.IsArray() {
+		// SIP-3: lower the element type and keep the array suffix.
+		elem := lowerType(*t.Elem)
+		return ast.Type{Elem: &elem}
+	}
 	if t.IsMapping() {
 		key := lowerType(*t.Key)
 		val := lowerType(*t.Value)
