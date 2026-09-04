@@ -11,8 +11,9 @@ func Transpile(src string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := lowerFile(file); err != nil {
+	res, err := lowerFile(file)
+	if err != nil {
 		return "", err
 	}
-	return Emit(file), nil
+	return Emit(file, res), nil
 }

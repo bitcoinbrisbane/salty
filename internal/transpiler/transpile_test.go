@@ -238,6 +238,55 @@ func TestTranspileArrays(t *testing.T) {
 	}
 }
 
+func TestTranspileSort(t *testing.T) {
+	// SIP-4: a.sort() -> LibSort.sort(a), with the LibSort library injected once.
+	src := `contract L {
+    uint[] a;
+    uint[] b;
+    function f() public {
+        a.sort();
+        b.sort();
+    }
+}`
+
+	out, err := Transpile(src)
+	if err != nil {
+		t.Fatalf("Transpile: %v", err)
+	}
+
+	if !strings.Contains(out, "LibSort.sort(a);") || !strings.Contains(out, "LibSort.sort(b);") {
+		t.Errorf("sort calls not rewritten:\n%s", out)
+	}
+	if n := strings.Count(out, "library LibSort {"); n != 1 {
+		t.Errorf("LibSort library defined %d times, want exactly 1:\n%s", n, out)
+	}
+	if strings.Contains(out, ".sort()") {
+		t.Errorf("unrewritten .sort() left in output:\n%s", out)
+	}
+	// The library must precede the contract that uses it.
+	if strings.Index(out, "library LibSort {") > strings.Index(out, "contract L {") {
+		t.Errorf("LibSort library emitted after the contract:\n%s", out)
+	}
+}
+
+func TestTranspileNoSortNoLib(t *testing.T) {
+	// SIP-4: LibSort is omitted entirely when sort is not used.
+	src := `contract A {
+    uint[] xs;
+    function f() public {
+        xs.push(1);
+    }
+}`
+
+	out, err := Transpile(src)
+	if err != nil {
+		t.Fatalf("Transpile: %v", err)
+	}
+	if strings.Contains(out, "LibSort") {
+		t.Errorf("LibSort injected when sort was not used:\n%s", out)
+	}
+}
+
 func TestTranspileEventAndEmit(t *testing.T) {
 	src := `contract Wallet {
     event Deposit(address indexed from, uint amount);

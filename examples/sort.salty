@@ -1,0 +1,19 @@
+// SIP-4: array sort.
+//
+// a.sort() sorts a uint256[] in place, ascending. It lowers to
+// LibSort.sort(a), and Salty injects the LibSort library (insertion sort)
+// once, only when sort is used.
+//
+// See sips/sip-4.md.
+
+contract Leaderboard {
+    uint[] scores;
+
+    function add(uint score) public {
+        scores.push(score);
+    }
+
+    function order() public {
+        scores.sort();
+    }
+}

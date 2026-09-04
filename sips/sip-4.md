@@ -1,7 +1,7 @@
 ---
 sip: 4
 title: Array sort via an auto-injected library
-status: Draft
+status: Final
 type: Standards Track
 author: Salty maintainers
 created: 2026-09-04
@@ -113,11 +113,13 @@ injected one; a future revision may namespace or detect this.
 
 ## Reference Implementation
 
-Not yet implemented. Planned:
+Implemented in the Salty transpiler:
 
-- Recognise `a.sort()` call expressions in lowering and rewrite to
-  `LibSort.sort(a)` — `internal/transpiler/lower.go`.
-- Track whether sort was used and, if so, emit the `LibSort` library once after
-  the pragma — `internal/transpiler/emit.go`.
+- Lowering recognises `a.sort()` call expressions and rewrites them to
+  `LibSort.sort(a)`, recording that the library is needed —
+  `internal/transpiler/lower.go`.
+- The emitter injects the `LibSort` library once, after the pragma and before
+  the first contract, only when sort was used — `internal/transpiler/emit.go`.
 
-Depends on SIP-3 (dynamic arrays).
+Example: [`examples/sort.salty`](../examples/sort.salty). Depends on SIP-3
+(dynamic arrays).

@@ -11,7 +11,26 @@ const (
 	solidityPragma = "pragma solidity ^0.8.0;"
 	spdxHeader     = "// SPDX-License-Identifier: MIT"
 	indentUnit     = "    "
+	libSortName    = "LibSort"
 )
+
+// libSortSource is the LibSort library injected when an array sort is used
+// (SIP-4). It is an in-place ascending insertion sort over a uint256 array.
+const libSortSource = `// Auto-injected by Salty for SIP-4 (array sort).
+library LibSort {
+    // In-place ascending insertion sort over a uint256 array.
+    function sort(uint256[] storage a) internal {
+        for (uint256 i = 1; i < a.length; i++) {
+            uint256 key = a[i];
+            uint256 j = i;
+            while (j > 0 && a[j - 1] > key) {
+                a[j] = a[j - 1];
+                j--;
+            }
+            a[j] = key;
+        }
+    }
+}`
 
 // emitter builds Solidity source with indentation tracking.
 type emitter struct {
@@ -19,11 +38,18 @@ type emitter struct {
 	indent int
 }
 
-// Emit renders a (lowered) Salty AST as Solidity source.
-func Emit(f *ast.File) string {
+// Emit renders a (lowered) Salty AST as Solidity source. res carries facts from
+// lowering, such as whether the LibSort library must be injected (SIP-4).
+func Emit(f *ast.File, res lowerResult) string {
 	e := &emitter{}
 	e.line(spdxHeader)
 	e.line(solidityPragma)
+	if res.needsLibSort {
+		// SIP-4: inject the sort library once, after the pragma and before the
+		// first contract.
+		e.raw("\n")
+		e.raw(libSortSource + "\n")
+	}
 	for _, c := range f.Contracts {
 		e.raw("\n")
 		e.emitContract(c)

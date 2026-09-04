@@ -16,16 +16,26 @@ var typeAliases = map[string]string{
 
 // lowerer rewrites a Salty AST into an equivalent AST that maps directly onto
 // Solidity. It tracks the scale of decimal-typed variables (SIP-2) so decimal
-// literals assigned to them can be scaled to integers.
+// literals assigned to them can be scaled to integers, and whether an array
+// sort was used (SIP-4) so the emitter can inject the LibSort library.
 type lowerer struct {
 	// decimalScales maps a variable name in scope to its decimal scale, used to
 	// scale decimal literals at their assignment site (SIP-2).
 	decimalScales map[string]int
+	// needsLibSort records that an a.sort() was rewritten (SIP-4), so the
+	// emitter must inject the LibSort library.
+	needsLibSort bool
 }
 
-// lowerFile lowers f in place, returning the first error encountered (e.g. a
-// decimal literal with more precision than its target type allows).
-func lowerFile(f *ast.File) error {
+// lowerResult reports auxiliary facts the emitter needs after lowering.
+type lowerResult struct {
+	needsLibSort bool // SIP-4: emit the LibSort library
+}
+
+// lowerFile lowers f in place, returning what the emitter needs and the first
+// error encountered (e.g. a decimal literal with more precision than its target
+// type allows).
+func lowerFile(f *ast.File) (lowerResult, error) {
 	l := &lowerer{decimalScales: map[string]int{}}
 	for _, c := range f.Contracts {
 		for _, m := range c.Members {
@@ -45,12 +55,12 @@ func lowerFile(f *ast.File) error {
 				}
 			case *ast.Function:
 				if err := l.lowerFunction(member); err != nil {
-					return err
+					return lowerResult{}, err
 				}
 			}
 		}
 	}
-	return nil
+	return lowerResult{needsLibSort: l.needsLibSort}, nil
 }
 
 // lowerType expands type aliases and lowers decimal(N) to uint256 (SIP-2),
@@ -150,9 +160,35 @@ func (l *lowerer) lowerStatement(s ast.Statement) (ast.Statement, error) {
 		return stmt, nil
 	case *ast.SwitchStmt:
 		return l.lowerSwitch(stmt)
+	case *ast.ExprStmt:
+		// SIP-4: rewrite a.sort() -> LibSort.sort(a).
+		stmt.X = l.lowerExpr(stmt.X)
+		return stmt, nil
 	default:
 		return s, nil
 	}
+}
+
+// lowerExpr rewrites expressions that require lowering. Currently that is the
+// SIP-4 array sort: a call a.sort() with no arguments becomes LibSort.sort(a).
+func (l *lowerer) lowerExpr(x ast.Expression) ast.Expression {
+	call, ok := x.(*ast.CallExpr)
+	if !ok {
+		return x
+	}
+	member, ok := call.Callee.(*ast.MemberExpr)
+	if ok && member.Member == "sort" && len(call.Args) == 0 {
+		// SIP-4: a.sort() -> LibSort.sort(a).
+		l.needsLibSort = true
+		return &ast.CallExpr{
+			Callee: &ast.MemberExpr{
+				Target: &ast.Identifier{Name: libSortName},
+				Member: "sort",
+			},
+			Args: []ast.Expression{member.Target},
+		}
+	}
+	return x
 }
 
 // assignTargetScale returns the decimal scale of an assignment target if it is a

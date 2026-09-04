@@ -57,6 +57,15 @@ uint256[] ids;
 uint256[] prices;
 ids.push(id);</code></pre>
 
+  <h2>Array sort (<a href="https://github.com/bitcoinbrisbane/salty/blob/main/sips/sip-4.md">SIP-4</a>)</h2>
+  <p><code>a.sort()</code> lowers to <code>LibSort.sort(a)</code>, and Salty
+  injects a generated insertion-sort library once — only when sort is used.</p>
+  <pre><code>// Salty
+scores.sort();
+
+// Solidity
+LibSort.sort(scores);   // + a generated library LibSort injected once</code></pre>
+
   <h2>Contributing (SIPs)</h2>
   <p>Language changes are proposed as <strong>Salty Improvement Proposals</strong>,
   modelled on Ethereum's EIPs: open a GitHub issue with the <em>SIP proposal</em>

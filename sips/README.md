@@ -23,4 +23,4 @@ its transpiler. They are modelled on [Ethereum's EIPs](https://eips.ethereum.org
 | [1](./sip-1.md) | SIP Purpose and Guidelines | Living |
 | [2](./sip-2.md) | Decimal fixed-point type | Final |
 | [3](./sip-3.md) | Dynamic array type | Final |
-| [4](./sip-4.md) | Array sort via an auto-injected library | Draft |
+| [4](./sip-4.md) | Array sort via an auto-injected library | Final |
