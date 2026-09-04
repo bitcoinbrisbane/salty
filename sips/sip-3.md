@@ -1,7 +1,7 @@
 ---
 sip: 3
 title: Dynamic array type
-status: Accepted
+status: Final
 type: Standards Track
 author: Salty maintainers
 created: 2026-09-04
