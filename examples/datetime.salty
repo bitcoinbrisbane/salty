@@ -1,0 +1,28 @@
+// SIP-5: datetime type + duration math.
+//
+// `datetime` lowers to uint256 (Unix seconds), so it interoperates with
+// block.timestamp. `now()` lowers to block.timestamp. Duration methods
+// (addDays/subDays/addHours/addMinutes/addSeconds, and their sub- variants)
+// lower to LibDateTime.<method>(t, n); Salty injects the LibDateTime library
+// (modelled on BokkyPooBah's DateTimeLibrary) once, only when used.
+//
+// See sips/sip-5.md.
+
+contract Subscription {
+    datetime start;
+    datetime expiry;
+
+    function subscribe() public {
+        datetime t = now();
+        start = t;
+        expiry = t.addDays(30);
+    }
+
+    function extend() public {
+        expiry = expiry.addDays(7).addHours(12);
+    }
+
+    function isActive() public view returns (bool) {
+        return now() < expiry;
+    }
+}

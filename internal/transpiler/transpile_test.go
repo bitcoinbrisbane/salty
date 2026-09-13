@@ -25,7 +25,7 @@ func TestTranspileCounter(t *testing.T) {
 		"// SPDX-License-Identifier: MIT",
 		"pragma solidity ^0.8.0;",
 		"contract Counter {",
-		"uint256 count;",              // alias expanded
+		"uint256 count;", // alias expanded
 		"function increment() public {",
 		"function get() public view returns (uint256) {", // alias in returns
 		"return count;",
@@ -93,11 +93,11 @@ func TestTranspileMappingAndStruct(t *testing.T) {
 
 	for _, want := range []string{
 		"struct Account {",
-		"uint256 balance;",                                        // alias inside struct
-		"mapping(address => Account) accounts;",                   // mapping to struct
+		"uint256 balance;",                      // alias inside struct
+		"mapping(address => Account) accounts;", // mapping to struct
 		"mapping(address => mapping(address => uint256)) allowance;", // nested mapping + alias
-		"return accounts[owner].balance;",                         // index + member access
-		"allowance[msg.sender][spender] = amount;",                // chained index + member
+		"return accounts[owner].balance;",                            // index + member access
+		"allowance[msg.sender][spender] = amount;",                   // chained index + member
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output missing %q\n---\n%s", want, out)
@@ -174,7 +174,7 @@ func TestTranspileGreeter(t *testing.T) {
 
 	for _, want := range []string{
 		"string greeting;",
-		"constructor(string memory initial) public {",           // constructor + data location
+		"constructor(string memory initial) public {",            // constructor + data location
 		"function greet() public view returns (string memory) {", // return data location
 		"function setGreeting(string memory newGreeting) public {",
 		"return greeting;",
@@ -225,8 +225,8 @@ func TestTranspileArrays(t *testing.T) {
 
 	for _, want := range []string{
 		"uint256[] ids;",
-		"uint256[] prices;",   // decimal(18)[] element lowered (SIP-2)
-		"uint256[][] grid;",   // nested array
+		"uint256[] prices;", // decimal(18)[] element lowered (SIP-2)
+		"uint256[][] grid;", // nested array
 		"ids.push(id);",
 		"return ids.length;",
 		"function f(uint256[] memory xs) public pure returns (uint256) {",
@@ -307,5 +307,73 @@ func TestTranspileEventAndEmit(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("output missing %q\n---\n%s", want, out)
 		}
+	}
+}
+
+func TestTranspileDateTime(t *testing.T) {
+	// SIP-5: datetime -> uint256, now() -> block.timestamp, and duration methods
+	// -> LibDateTime.<method>(t, n), with the LibDateTime library injected once.
+	src := `contract Sub {
+    datetime start;
+    datetime expiry;
+    function subscribe() public {
+        datetime t = now();
+        start = t;
+        expiry = t.addDays(30);
+    }
+    function extend() public {
+        expiry = expiry.addDays(7).addHours(12);
+    }
+}`
+
+	out, err := Transpile(src)
+	if err != nil {
+		t.Fatalf("Transpile: %v", err)
+	}
+
+	for _, want := range []string{
+		"uint256 start;",               // datetime state var -> uint256
+		"uint256 t = block.timestamp;", // datetime local + now() lowering
+		"expiry = LibDateTime.addDays(t, 30);",
+		// Chained calls lower to nested calls, applied inside-out.
+		"expiry = LibDateTime.addHours(LibDateTime.addDays(expiry, 7), 12);",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q\n---\n%s", want, out)
+		}
+	}
+	if n := strings.Count(out, "library LibDateTime {"); n != 1 {
+		t.Errorf("LibDateTime library defined %d times, want exactly 1:\n%s", n, out)
+	}
+	if strings.Contains(out, ".addDays(") && strings.Contains(out, "expiry.addDays") {
+		t.Errorf("unrewritten datetime method left in output:\n%s", out)
+	}
+	// The library must precede the contract that uses it.
+	if strings.Index(out, "library LibDateTime {") > strings.Index(out, "contract Sub {") {
+		t.Errorf("LibDateTime library emitted after the contract:\n%s", out)
+	}
+}
+
+func TestTranspileNowWithoutLib(t *testing.T) {
+	// SIP-5: now() alone lowers to block.timestamp and does NOT inject
+	// LibDateTime — only duration methods require the library.
+	src := `contract Clock {
+    function current() public view returns (datetime) {
+        return now();
+    }
+}`
+
+	out, err := Transpile(src)
+	if err != nil {
+		t.Fatalf("Transpile: %v", err)
+	}
+	if !strings.Contains(out, "return block.timestamp;") {
+		t.Errorf("now() not lowered to block.timestamp:\n%s", out)
+	}
+	if !strings.Contains(out, "returns (uint256)") {
+		t.Errorf("datetime return type not lowered to uint256:\n%s", out)
+	}
+	if strings.Contains(out, "LibDateTime") {
+		t.Errorf("LibDateTime injected when only now() was used:\n%s", out)
 	}
 }

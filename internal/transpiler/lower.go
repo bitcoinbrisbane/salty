@@ -25,11 +25,24 @@ type lowerer struct {
 	// needsLibSort records that an a.sort() was rewritten (SIP-4), so the
 	// emitter must inject the LibSort library.
 	needsLibSort bool
+	// needsLibDateTime records that a datetime duration method was rewritten
+	// (SIP-5), so the emitter must inject the LibDateTime library.
+	needsLibDateTime bool
 }
 
 // lowerResult reports auxiliary facts the emitter needs after lowering.
 type lowerResult struct {
-	needsLibSort bool // SIP-4: emit the LibSort library
+	needsLibSort     bool // SIP-4: emit the LibSort library
+	needsLibDateTime bool // SIP-5: emit the LibDateTime library
+}
+
+// dateTimeMethods is the set of datetime duration methods (SIP-5). Each
+// t.method(n) lowers to LibDateTime.method(t, n).
+var dateTimeMethods = map[string]bool{
+	"addSeconds": true, "subSeconds": true,
+	"addMinutes": true, "subMinutes": true,
+	"addHours": true, "subHours": true,
+	"addDays": true, "subDays": true,
 }
 
 // lowerFile lowers f in place, returning what the emitter needs and the first
@@ -60,7 +73,7 @@ func lowerFile(f *ast.File) (lowerResult, error) {
 			}
 		}
 	}
-	return lowerResult{needsLibSort: l.needsLibSort}, nil
+	return lowerResult{needsLibSort: l.needsLibSort, needsLibDateTime: l.needsLibDateTime}, nil
 }
 
 // lowerType expands type aliases and lowers decimal(N) to uint256 (SIP-2),
@@ -78,6 +91,10 @@ func lowerType(t ast.Type) ast.Type {
 	}
 	if t.IsDecimal() {
 		// SIP-2: decimal(N) is represented as uint256 fixed-point.
+		return ast.Type{Name: "uint256"}
+	}
+	if t.Name == "datetime" {
+		// SIP-5: datetime is represented as uint256 Unix seconds.
 		return ast.Type{Name: "uint256"}
 	}
 	if canonical, ok := typeAliases[t.Name]; ok {
@@ -130,6 +147,10 @@ func (l *lowerer) lowerStatement(s ast.Statement) (ast.Statement, error) {
 			}
 		}
 		stmt.Type = lowerType(stmt.Type)
+		// SIP-5: lower now()/datetime methods in the initializer.
+		if stmt.Value != nil {
+			stmt.Value = l.lowerExpr(stmt.Value)
+		}
 		return stmt, nil
 	case *ast.AssignStmt:
 		// If the target is a known decimal variable, scale a decimal-literal RHS.
@@ -140,8 +161,17 @@ func (l *lowerer) lowerStatement(s ast.Statement) (ast.Statement, error) {
 			}
 			stmt.Value = v
 		}
+		// SIP-5: lower now()/datetime methods on both sides.
+		stmt.Target = l.lowerExpr(stmt.Target)
+		stmt.Value = l.lowerExpr(stmt.Value)
+		return stmt, nil
+	case *ast.ReturnStmt:
+		if stmt.Value != nil {
+			stmt.Value = l.lowerExpr(stmt.Value)
+		}
 		return stmt, nil
 	case *ast.IfStmt:
+		stmt.Cond = l.lowerExpr(stmt.Cond)
 		if err := l.lowerBlock(stmt.Then); err != nil {
 			return nil, err
 		}
@@ -169,26 +199,65 @@ func (l *lowerer) lowerStatement(s ast.Statement) (ast.Statement, error) {
 	}
 }
 
-// lowerExpr rewrites expressions that require lowering. Currently that is the
-// SIP-4 array sort: a call a.sort() with no arguments becomes LibSort.sort(a).
+// lowerExpr rewrites expressions that require lowering, recursing into
+// sub-expressions so nested and chained calls are handled. It covers:
+//   - SIP-4 array sort: a.sort() -> LibSort.sort(a).
+//   - SIP-5 datetime: now() -> block.timestamp, and t.addX(n)/t.subX(n) ->
+//     LibDateTime.addX(t, n) / LibDateTime.subX(t, n).
 func (l *lowerer) lowerExpr(x ast.Expression) ast.Expression {
-	call, ok := x.(*ast.CallExpr)
-	if !ok {
+	switch e := x.(type) {
+	case *ast.CallExpr:
+		// SIP-5: now() -> block.timestamp.
+		if id, ok := e.Callee.(*ast.Identifier); ok && id.Name == "now" && len(e.Args) == 0 {
+			return &ast.MemberExpr{
+				Target: &ast.Identifier{Name: "block"},
+				Member: "timestamp",
+			}
+		}
+		if member, ok := e.Callee.(*ast.MemberExpr); ok {
+			// SIP-4: a.sort() -> LibSort.sort(a).
+			if member.Member == "sort" && len(e.Args) == 0 {
+				l.needsLibSort = true
+				return &ast.CallExpr{
+					Callee: &ast.MemberExpr{
+						Target: &ast.Identifier{Name: libSortName},
+						Member: "sort",
+					},
+					Args: []ast.Expression{l.lowerExpr(member.Target)},
+				}
+			}
+			// SIP-5: t.addDays(n) -> LibDateTime.addDays(t, n).
+			if dateTimeMethods[member.Member] && len(e.Args) == 1 {
+				l.needsLibDateTime = true
+				return &ast.CallExpr{
+					Callee: &ast.MemberExpr{
+						Target: &ast.Identifier{Name: libDateTimeName},
+						Member: member.Member,
+					},
+					Args: []ast.Expression{l.lowerExpr(member.Target), l.lowerExpr(e.Args[0])},
+				}
+			}
+		}
+		// Generic call: lower the callee and arguments.
+		e.Callee = l.lowerExpr(e.Callee)
+		for i, a := range e.Args {
+			e.Args[i] = l.lowerExpr(a)
+		}
+		return e
+	case *ast.BinaryExpr:
+		e.Left = l.lowerExpr(e.Left)
+		e.Right = l.lowerExpr(e.Right)
+		return e
+	case *ast.IndexExpr:
+		e.Target = l.lowerExpr(e.Target)
+		e.Index = l.lowerExpr(e.Index)
+		return e
+	case *ast.MemberExpr:
+		e.Target = l.lowerExpr(e.Target)
+		return e
+	default:
 		return x
 	}
-	member, ok := call.Callee.(*ast.MemberExpr)
-	if ok && member.Member == "sort" && len(call.Args) == 0 {
-		// SIP-4: a.sort() -> LibSort.sort(a).
-		l.needsLibSort = true
-		return &ast.CallExpr{
-			Callee: &ast.MemberExpr{
-				Target: &ast.Identifier{Name: libSortName},
-				Member: "sort",
-			},
-			Args: []ast.Expression{member.Target},
-		}
-	}
-	return x
 }
 
 // assignTargetScale returns the decimal scale of an assignment target if it is a

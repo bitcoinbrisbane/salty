@@ -8,10 +8,11 @@ import (
 )
 
 const (
-	solidityPragma = "pragma solidity ^0.8.0;"
-	spdxHeader     = "// SPDX-License-Identifier: MIT"
-	indentUnit     = "    "
-	libSortName    = "LibSort"
+	solidityPragma  = "pragma solidity ^0.8.0;"
+	spdxHeader      = "// SPDX-License-Identifier: MIT"
+	indentUnit      = "    "
+	libSortName     = "LibSort"
+	libDateTimeName = "LibDateTime"
 )
 
 // libSortSource is the LibSort library injected when an array sort is used
@@ -32,6 +33,43 @@ library LibSort {
     }
 }`
 
+// libDateTimeSource is the LibDateTime library injected when a datetime duration
+// method is used (SIP-5). It is modelled on BokkyPooBah's DateTimeLibrary (MIT):
+// https://github.com/bokkypoobah/BokkyPooBahsDateTimeLibrary
+const libDateTimeSource = `// Auto-injected by Salty for SIP-5 (datetime).
+// Modelled on BokkyPooBah's DateTimeLibrary (MIT):
+// https://github.com/bokkypoobah/BokkyPooBahsDateTimeLibrary
+library LibDateTime {
+    uint256 constant SECONDS_PER_DAY = 24 * 60 * 60;
+    uint256 constant SECONDS_PER_HOUR = 60 * 60;
+    uint256 constant SECONDS_PER_MINUTE = 60;
+
+    function addSeconds(uint256 t, uint256 n) internal pure returns (uint256) {
+        return t + n;
+    }
+    function subSeconds(uint256 t, uint256 n) internal pure returns (uint256) {
+        return t - n;
+    }
+    function addMinutes(uint256 t, uint256 n) internal pure returns (uint256) {
+        return t + n * SECONDS_PER_MINUTE;
+    }
+    function subMinutes(uint256 t, uint256 n) internal pure returns (uint256) {
+        return t - n * SECONDS_PER_MINUTE;
+    }
+    function addHours(uint256 t, uint256 n) internal pure returns (uint256) {
+        return t + n * SECONDS_PER_HOUR;
+    }
+    function subHours(uint256 t, uint256 n) internal pure returns (uint256) {
+        return t - n * SECONDS_PER_HOUR;
+    }
+    function addDays(uint256 t, uint256 n) internal pure returns (uint256) {
+        return t + n * SECONDS_PER_DAY;
+    }
+    function subDays(uint256 t, uint256 n) internal pure returns (uint256) {
+        return t - n * SECONDS_PER_DAY;
+    }
+}`
+
 // emitter builds Solidity source with indentation tracking.
 type emitter struct {
 	sb     strings.Builder
@@ -49,6 +87,12 @@ func Emit(f *ast.File, res lowerResult) string {
 		// first contract.
 		e.raw("\n")
 		e.raw(libSortSource + "\n")
+	}
+	if res.needsLibDateTime {
+		// SIP-5: inject the datetime library once, after the pragma and before
+		// the first contract.
+		e.raw("\n")
+		e.raw(libDateTimeSource + "\n")
 	}
 	for _, c := range f.Contracts {
 		e.raw("\n")
