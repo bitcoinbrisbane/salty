@@ -77,23 +77,23 @@ type Token struct {
 // keywords maps reserved words to their token type. Built-in type names are
 // tagged as TYPE so the parser can treat them uniformly.
 var keywords = map[string]TokenType{
-	"contract": CONTRACT,
-	"function": FUNCTION,
-	"public":   PUBLIC,
-	"private":  PRIVATE,
-	"internal": INTERNAL,
-	"external": EXTERNAL,
-	"view":     VIEW,
-	"pure":     PURE,
-	"returns":  RETURNS,
-	"return":   RETURN,
-	"if":       IF,
-	"else":     ELSE,
-	"switch":   SWITCH,
-	"case":     CASE,
-	"default":  DEFAULT,
-	"mapping":  MAPPING,
-	"struct":   STRUCT,
+	"contract":    CONTRACT,
+	"function":    FUNCTION,
+	"public":      PUBLIC,
+	"private":     PRIVATE,
+	"internal":    INTERNAL,
+	"external":    EXTERNAL,
+	"view":        VIEW,
+	"pure":        PURE,
+	"returns":     RETURNS,
+	"return":      RETURN,
+	"if":          IF,
+	"else":        ELSE,
+	"switch":      SWITCH,
+	"case":        CASE,
+	"default":     DEFAULT,
+	"mapping":     MAPPING,
+	"struct":      STRUCT,
 	"event":       EVENT,
 	"emit":        EMIT,
 	"indexed":     INDEXED,
@@ -105,14 +105,15 @@ var keywords = map[string]TokenType{
 	"false":       FALSE,
 
 	// Built-in types.
-	"uint256": TYPE,
-	"uint":    TYPE,
-	"int256":  TYPE,
-	"int":     TYPE,
-	"bool":    TYPE,
-	"address": TYPE,
-	"string":  TYPE,
-	"decimal": TYPE, // SIP-2: decimal / decimal(N) fixed-point type
+	"uint256":  TYPE,
+	"uint":     TYPE,
+	"int256":   TYPE,
+	"int":      TYPE,
+	"bool":     TYPE,
+	"address":  TYPE,
+	"string":   TYPE,
+	"decimal":  TYPE, // SIP-2: decimal / decimal(N) fixed-point type
+	"datetime": TYPE, // SIP-5: datetime (Unix seconds), lowers to uint256
 }
 
 // lookupIdent returns the keyword token type for ident, or IDENT if it is not

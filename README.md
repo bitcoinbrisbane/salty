@@ -68,6 +68,7 @@ salty transpile examples/greeter.salty        # the classic Greeter
 salty transpile examples/price.salty          # decimal fixed-point type (SIP-2)
 salty transpile examples/arrays.salty         # dynamic arrays (SIP-3)
 salty transpile examples/sort.salty           # array sort + injected library (SIP-4)
+salty transpile examples/datetime.salty       # datetime type + duration math (SIP-5)
 ```
 
 ## Features
@@ -82,6 +83,10 @@ salty transpile examples/sort.salty           # array sort + injected library (S
   `a.length`, `a.push(x)`, `a.pop()`.
 - **Array sort ([SIP-4](sips/sip-4.md))** — `a.sort()` lowers to `LibSort.sort(a)`;
   Salty injects a generated insertion-sort library once, only when used.
+- **`datetime` type ([SIP-5](sips/sip-5.md))** — `datetime` lowers to `uint256`
+  (Unix seconds); `now()` → `block.timestamp`, and moment-style duration methods
+  (`addDays`/`subDays`/`addHours`/`addMinutes`/`addSeconds`) lower to an injected
+  `LibDateTime` (modelled on BokkyPooBah's DateTimeLibrary), added only when used.
 - Index (`m[key]`) and member (`s.field`) access, chainable (`accounts[owner].balance`).
 - `switch` statement that lowers to `if / else if / else` in Solidity.
 - Type aliases: `uint` → `uint256`, `int` → `int256` (expanded everywhere,
@@ -122,6 +127,19 @@ scores.sort();
 
 // Solidity
 LibSort.sort(scores);   // + a generated `library LibSort` injected once
+```
+
+### Example: the `datetime` type (SIP-5)
+
+```solidity
+// Salty
+datetime t = now();
+expiry = t.addDays(30).addHours(12);
+
+// Solidity
+uint256 t = block.timestamp;
+expiry = LibDateTime.addHours(LibDateTime.addDays(t, 30), 12);
+// + a generated `library LibDateTime` injected once
 ```
 
 ## Editor support

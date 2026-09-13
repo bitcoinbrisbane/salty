@@ -89,9 +89,9 @@
       ]
     },
     "types": {
-      "comment": "Built-in types, including decimal (SIP-2). uint/int have optional bit-width suffixes.",
+      "comment": "Built-in types, including decimal (SIP-2) and datetime (SIP-5). uint/int have optional bit-width suffixes.",
       "name": "support.type.salty",
-      "match": "\\b(uint256|uint|int256|int|bool|address|string|decimal)\\b"
+      "match": "\\b(uint256|uint|int256|int|bool|address|string|decimal|datetime)\\b"
     },
     "constants": {
       "name": "constant.language.salty",
